@@ -96,3 +96,11 @@ curl http://localhost:8080/id
 ## AI 에이전트 사용
 
 Codex를 포함한 AI 에이전트는 작업 전에 [AGENTS.md](AGENTS.md)를 읽어야 합니다. 이 파일에는 프로젝트 컨텍스트, GCP 대상, 검증 및 안전 규칙이 정의되어 있습니다.
+
+각 장을 마치면 저장소 전용 `$update-docs` 스킬로 그 시점의 코드·인프라와 모든 문서를 동기화하고 검증된 변경을 커밋합니다.
+
+```text
+$update-docs
+```
+
+Codex에서는 `$update-docs`로 명시 호출하거나 `/skills`에서 선택합니다. 스킬은 [.agents/skills/update-docs/SKILL.md](.agents/skills/update-docs/SKILL.md)에 있으며, 실행할 때마다 새로 추가되거나 이름이 바뀐 문서까지 동적으로 탐색합니다. 푸시는 자동으로 수행하지 않으므로 필요하면 별도로 요청합니다.

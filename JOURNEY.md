@@ -12,6 +12,7 @@
 | ch2 | 2.5 GKE 클러스터 | ✅ | 2026-08-03 | GKE Standard, Spot `e2-medium` 2노드, Gateway API 활성화 |
 | ch2 | 2.6 빌드/배포 | ✅ | 2026-08-03 | Cloud Build 테스트 성공, `v0.1.0` 배포 및 API 검증 |
 | ch2 | 2.7 첫 커밋 | ✅ | 2026-08-03 | 코드·매니페스트·문서 최초 커밋 및 GitHub 푸시 |
+| ch2 | update-docs 스킬 | ✅ | 2026-08-03 | 저장소 문서 동적 탐색·동기화·검증·커밋 워크플로 추가 |
 | ch3 | 3.2 GitOps 도구 | ⬜ | | |
 | ch3 | 3.3 기능 추가 | ⬜ | | |
 | ch3 | 3.4 CI | ⬜ | | |
@@ -43,6 +44,7 @@
 | 컨테이너 런타임 | GKE Standard (Zonal) | GKE Autopilot | 노드 구성과 단계별 플랫폼 확장을 직접 실습하기 위해 선택 |
 | 이미지 저장소 | Artifact Registry | Docker Hub | GCP IAM 및 Cloud Build와의 네이티브 통합 |
 | 이미지 빌드 | Cloud Build | 로컬 Docker 빌드 | 로컬 도구 의존 없이 GCP에서 테스트·빌드·푸시를 일관되게 수행 |
+| 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
 ## 현재 버전
 
