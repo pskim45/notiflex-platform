@@ -18,7 +18,7 @@
 | ch3 | 3.4 CI | ✅ | 2026-08-04 | GitHub Actions와 Workload Identity Federation으로 테스트·SHA 이미지 빌드·푸시 자동화 |
 | ch3 | 3.5 CI-CD 연결 | ✅ | 2026-08-04 | 코드-only push로 `v0.1.3` 테스트·SHA 이미지 게시·매니페스트 커밋·Argo CD 자동 배포 검증 |
 | ch4 | 4.2 메트릭 모니터링 | ✅ | 2026-08-04 | kube-prometheus-stack 설치, active target 16개 Up 및 Notiflex 대시보드 로딩 검증 |
-| ch4 | 4.3 로그 수집 | ⬜ | | |
+| ch4 | 4.3 로그 수집 | ✅ | 2026-08-04 | Loki SingleBinary와 노드별 Fluent Bit 설치, Grafana 데이터소스 및 실시간 로그 조회 검증 |
 | ch4 | 4.4 알림 | ⬜ | | |
 | ch5 | 5.2 트래픽 관리 | ⬜ | | |
 | ch5 | 5.3 무중단 배포 | ⬜ | | |
@@ -46,6 +46,7 @@
 | 이미지 빌드 | GitHub Actions Docker build | Cloud Build, 로컬 Docker 빌드 | 코드 push 시 테스트·SHA 이미지 빌드·Artifact Registry 게시를 자동화 |
 | CI | GitHub Actions + Workload Identity Federation | Cloud Build Trigger, Jenkins, 서비스 계정 키 | GitHub push와 직접 연동하고 장기 키 없이 최소 권한으로 Artifact Registry에 게시 |
 | 메트릭 모니터링 | Prometheus + Grafana | Google Cloud Monitoring, Datadog | Kubernetes 표준 메트릭과 이후 Loki·Tempo를 Grafana에 통합하기 위해 선택 |
+| 로그 수집 | Loki + Fluent Bit | Elasticsearch, Grafana Alloy | 경량 구성으로 Kubernetes stdout/stderr 로그를 수집하고 기존 Grafana Explore에 통합하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
 ## 현재 버전
@@ -57,6 +58,8 @@
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
+| Loki | chart `7.2.0` | Loki `3.6.11`, SingleBinary, filesystem 5Gi |
+| Fluent Bit | chart `0.57.9` | Fluent Bit `5.0.9`, 노드별 DaemonSet |
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
@@ -73,6 +76,9 @@
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 16/16 Up |
 | ConfigMap `notiflex-dashboard` | `monitoring` | Grafana sidecar 로딩 완료, CPU·메모리·재시작 패널 구성 |
+| StatefulSet `loki`·Deployment `loki-gateway` | `monitoring` | Running, PVC 5Gi Bound, LogQL 조회 성공 |
+| DaemonSet `fluent-bit` | `monitoring` | 2/2 Ready, Loki push 및 Kubernetes 라벨 확인 |
+| ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
 
 ## 트러블슈팅 이력
 
@@ -89,3 +95,5 @@
 | ch3.5 | `set -e` 환경에서 변경을 확인하는 `git diff --quiet &&` 구문이 exit 1로 Step 중단 | 명시적인 `if git diff --quiet; then` 조건문으로 수정 후 전체 CI-CD 성공 |
 | ch4.2 | node-exporter 10m CPU request가 99% 예약된 노드에 스케줄되지 않음 | request를 5m으로 축소하고 Helm values에 반영해 DaemonSet 2/2 복구 |
 | ch4.2 | GKE CoreDNS가 metrics 포트 9153을 노출하지 않아 target 2개 Down | chart의 `coreDns.enabled=false`로 불필요한 scrape target 제거, active target 16/16 Up 확인 |
+| ch4.3 | 노드 CPU 요청량이 약 938m/940m라 Fluent Bit Pod가 Pending | 실제 사용량과 limit를 확인하고 CPU request를 1m으로 낮춰 DaemonSet 2/2 배치 |
+| ch4.3 | 기존 컨테이너 로그를 처음부터 읽자 Loki가 오래된 timestamp를 `entry too far behind`로 거부 | 과거 재수집 옵션을 제거하고 설치 이후 새 로그를 수집하는 안정적인 tail 구성으로 복원 |

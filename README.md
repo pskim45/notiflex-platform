@@ -97,6 +97,27 @@ GitOps 동기화 상태는 다음과 같이 확인합니다.
 kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-smb -n argocd
 ```
 
+## 중앙 로그 수집
+
+Loki chart `7.2.0`(Loki `3.6.11`)과 Fluent Bit chart `0.57.9`(Fluent Bit `5.0.9`)를 `monitoring` 네임스페이스에 설치합니다. Loki는 5Gi 영구 볼륨을 사용하는 SingleBinary 구성이고, Fluent Bit은 각 노드에서 새 컨테이너 stdout/stderr 로그를 수집합니다.
+
+```bash
+helm upgrade --install loki grafana/loki \
+  --version 7.2.0 \
+  --namespace monitoring \
+  --values helm-values/loki.yaml
+
+helm upgrade --install fluent-bit fluent/fluent-bit \
+  --version 0.57.9 \
+  --namespace monitoring \
+  --values helm-values/fluent-bit.yaml
+
+kubectl --context gke-sysnet4admin_book_gitaiops apply \
+  -f monitoring/loki-datasource.yaml
+```
+
+Grafana의 **Explore**에서 데이터소스로 `Loki`를 선택한 뒤 `{namespace="monitoring"}` 또는 `{namespace="notiflex"}` LogQL 쿼리를 실행합니다. Fluent Bit 설치 이후 새로 출력된 로그부터 조회됩니다.
+
 ## 메트릭 모니터링
 
 Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter는 `kube-prometheus-stack` chart `88.1.3`으로 `monitoring` 네임스페이스에 설치됩니다. 재현 가능한 설정은 `helm-values/kube-prometheus.yaml`에 있습니다.
