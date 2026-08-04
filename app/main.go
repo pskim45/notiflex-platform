@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const version = "v0.1.2"
+const version = "v0.1.3"
 
 type api struct {
 	podName string
