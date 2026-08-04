@@ -60,10 +60,10 @@ jobs:
           sed -i -E "s#^([[:space:]]*image: ).*/notiflex/api:[^[:space:]]+#\1${IMAGE_URI}#" k8s/smb/deployment.yaml
           grep -F "image: ${IMAGE_URI}" k8s/smb/deployment.yaml
           git diff --check
-          git diff --exit-code --quiet -- k8s/smb/deployment.yaml && {
+          if git diff --exit-code --quiet -- k8s/smb/deployment.yaml; then
             echo "Manifest already references ${IMAGE_URI}"
             exit 0
-          }
+          fi
 
       - name: Commit deployment manifest
         shell: bash
