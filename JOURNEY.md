@@ -16,7 +16,7 @@
 | ch3 | 3.2 GitOps 도구 | ✅ | 2026-08-04 | Argo CD 3.3.6 설치, private GitHub 저장소 연결, `notiflex-smb` Synced/Healthy 확인 |
 | ch3 | 3.3 기능 추가 | ✅ | 2026-08-04 | `/version`에 앱·Go·Pod 정보 추가, `v0.1.2` 롤링 업데이트 및 응답 검증 |
 | ch3 | 3.4 CI | ✅ | 2026-08-04 | GitHub Actions와 Workload Identity Federation으로 테스트·SHA 이미지 빌드·푸시 자동화 |
-| ch3 | 3.5 CI-CD 연결 | ✅ | 2026-08-04 | CI가 SHA 이미지 게시·매니페스트 커밋, Argo CD가 자동 롤링 배포하는 전체 흐름 검증 |
+| ch3 | 3.5 CI-CD 연결 | ✅ | 2026-08-04 | 코드-only push로 `v0.1.3` 테스트·SHA 이미지 게시·매니페스트 커밋·Argo CD 자동 배포 검증 |
 | ch4 | 4.2 메트릭 모니터링 | ⬜ | | |
 | ch4 | 4.3 로그 수집 | ⬜ | | |
 | ch4 | 4.4 알림 | ⬜ | | |
@@ -52,7 +52,7 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25 | 최초 구성 |
-| Notiflex 이미지 | `sha-6cba756` (`sha256:78f815fad23e3068245052c6e91464b529c6daa4291d22857aad060affbca450`) | API `v0.1.2`, CI 매니페스트 커밋 및 Argo CD 자동 롤링 업데이트 |
+| Notiflex 이미지 | `sha-066d7dd` (`sha256:720b4442c6555f7f5c93effd2e0ede60ec056ddf52711b79e976b01b866b3aaf`) | API `v0.1.3`, 코드-only push 후 CI-CD 자동 롤링 업데이트 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | Kafka | 미설치 | ch8 예정 |
@@ -66,7 +66,7 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Deployment `notiflex-api` | `notiflex` | `sha-6cba756`, 2/2 Ready |
+| Deployment `notiflex-api` | `notiflex` | `sha-066d7dd`, 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
 

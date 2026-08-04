@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.1.2`가 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. 관측 가능성 구성은 이후 단계에서 추가합니다.
+Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. 관측 가능성 구성은 이후 단계에서 추가합니다.
 
 ## 기술 스택
 
@@ -76,7 +76,7 @@ go run .
 ```bash
 gcloud builds submit app/ \
   --project=project-10edc337-9677-4dfc-91a \
-  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.1.2
+  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.1.3
 ```
 
 `main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/deployment.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
