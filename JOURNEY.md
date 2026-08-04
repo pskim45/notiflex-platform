@@ -13,7 +13,7 @@
 | ch2 | 2.6 빌드/배포 | ✅ | 2026-08-03 | Cloud Build 테스트 성공, `v0.1.0` 배포 및 API 검증 |
 | ch2 | 2.7 첫 커밋 | ✅ | 2026-08-03 | 코드·매니페스트·문서 최초 커밋 및 GitHub 푸시 |
 | ch2 | update-docs 스킬 | ✅ | 2026-08-03 | 저장소 문서 동적 탐색·동기화·검증·커밋 워크플로 추가 |
-| ch3 | 3.2 GitOps 도구 | ⬜ | | |
+| ch3 | 3.2 GitOps 도구 | ✅ | 2026-08-04 | Argo CD 3.3.6 설치, private GitHub 저장소 연결, `notiflex-smb` Synced/Healthy 확인 |
 | ch3 | 3.3 기능 추가 | ⬜ | | |
 | ch3 | 3.4 CI | ⬜ | | |
 | ch3 | 3.5 CI-CD 연결 | ⬜ | | |
@@ -53,7 +53,7 @@
 | Go | 1.25 | 최초 구성 |
 | Notiflex 이미지 | `v0.1.0` (`sha256:dad154eff262693903e2d73d8ef0442242060151a15c9bb7171d8141cbb0ccc0`) | 최초 배포 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
-| ArgoCD | 미설치 | ch3 예정 |
+| ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
@@ -67,6 +67,7 @@
 |---------------------|---------------|------|
 | Deployment `notiflex-api` | `notiflex` | 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
+| Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
 
 ## 트러블슈팅 이력
 
