@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. 관측 가능성 구성은 이후 단계에서 추가합니다.
+Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. Prometheus가 클러스터 메트릭을 수집하고 Grafana가 기본 Kubernetes 대시보드와 Notiflex 전용 대시보드를 제공합니다.
 
 ## 기술 스택
 
@@ -26,6 +26,8 @@ notiflex-platform/
 │   └── notiflex-smb.yaml # Argo CD Application 선언
 ├── k8s/
 │   └── smb/              # Kubernetes 매니페스트
+├── helm-values/          # kube-prometheus-stack 경량 설정
+├── monitoring/           # Notiflex Grafana 대시보드
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
@@ -94,6 +96,29 @@ GitOps 동기화 상태는 다음과 같이 확인합니다.
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-smb -n argocd
 ```
+
+## 메트릭 모니터링
+
+Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter는 `kube-prometheus-stack` chart `88.1.3`으로 `monitoring` 네임스페이스에 설치됩니다. 재현 가능한 설정은 `helm-values/kube-prometheus.yaml`에 있습니다.
+
+```bash
+helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack \
+  --version 88.1.3 \
+  --namespace monitoring --create-namespace \
+  --values helm-values/kube-prometheus.yaml
+
+kubectl --context gke-sysnet4admin_book_gitaiops apply \
+  -f monitoring/notiflex-dashboard.yaml
+```
+
+Grafana 접속용 포트 포워딩:
+
+```bash
+kubectl --context gke-sysnet4admin_book_gitaiops \
+  port-forward service/kube-prometheus-grafana -n monitoring 3000:80
+```
+
+브라우저에서 `http://localhost:3000`에 접속합니다. 사용자 이름은 `admin`이며 비밀번호는 `kube-prometheus-grafana` Secret에서 조회합니다. Notiflex 대시보드의 CPU·메모리·재시작 패널은 현재 동작하고, HTTP 요청 패널은 API가 `/metrics`에서 `http_requests_total`을 노출한 뒤 데이터가 표시됩니다.
 
 로컬 포트 포워딩 후 API를 확인할 수 있습니다.
 

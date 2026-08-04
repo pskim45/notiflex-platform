@@ -6,7 +6,7 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.1.3`, Argo CD GitOps, GitHub Actions CI-CD까지 구성되었다. 이후 관측 가능성과 점진적 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
+- 현재 단계: API `v0.1.3`, Argo CD GitOps, GitHub Actions CI-CD, Prometheus·Grafana 메트릭 모니터링까지 구성되었다. 이후 로그·알림과 점진적 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
@@ -19,6 +19,8 @@
 - `app/`: Go 소스, 테스트, 모듈 파일, Dockerfile
 - `k8s/smb/`: Notiflex Kubernetes 매니페스트
 - `.github/workflows/`: CI/CD 워크플로
+- `helm-values/`: Helm chart의 재현 가능한 경량 설정
+- `monitoring/`: Grafana 대시보드 등 모니터링 리소스
 - `JOURNEY.md`: 실습 진행 상태, 선택 이유, 버전, 리소스 및 트러블슈팅 기록. 파일이 존재하면 작업 전 읽고, 단계 완료 후 실제 결과만 반영한다.
 
 ## 고정 GCP 설정
