@@ -6,7 +6,7 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.1.3`, Argo CD GitOps, GitHub Actions CI-CD, 관측성 스택과 GKE Gateway API 외부 접근까지 구성되었다. Pod 재시작 PrometheusRule은 로드됐으며 외부 알림 수신 채널과 Firing 검증은 남아 있다. 이후 Blue/Green 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
+- 현재 단계: API `v0.2.0`, Argo CD GitOps, GitHub Actions CI-CD, 관측성 스택, GKE Gateway API 외부 접근, Argo Rollouts Blue/Green 배포까지 구성되었다. Pod 재시작 PrometheusRule은 로드됐으며 외부 알림 수신 채널과 Firing 검증은 남아 있다. 이후 Canary 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.

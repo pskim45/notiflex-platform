@@ -21,7 +21,7 @@
 | ch4 | 4.3 로그 수집 | ✅ | 2026-08-04 | Loki SingleBinary와 노드별 Fluent Bit 설치, Grafana 데이터소스 및 실시간 로그 조회 검증 |
 | ch4 | 4.4 알림 | 🚧 | | `PodRestartTooMany` 로드 및 health 확인 완료, 외부 receiver 연결·Firing 검증 대기 |
 | ch5 | 5.2 트래픽 관리 | ✅ | 2026-08-04 | GKE 리전 외부 Gateway·HTTPRoute·HealthCheckPolicy 구성, 외부 `/health`·`/id`·`/version` HTTP 200 검증 |
-| ch5 | 5.3 무중단 배포 | ⬜ | | |
+| ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환, `v0.1.3`→`v0.2.0` preview·30초 자동 승격·active 전환 검증 |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |
@@ -48,6 +48,7 @@
 | 메트릭 모니터링 | Prometheus + Grafana | Google Cloud Monitoring, Datadog | Kubernetes 표준 메트릭과 이후 Loki·Tempo를 Grafana에 통합하기 위해 선택 |
 | 로그 수집 | Loki + Fluent Bit | Elasticsearch, Grafana Alloy | 경량 구성으로 Kubernetes stdout/stderr 로그를 수집하고 기존 Grafana Explore에 통합하기 위해 선택 |
 | 알림 규칙 | PrometheusRule + Alertmanager | Grafana Alerting | kube-prometheus-stack의 기존 평가·라우팅 경로를 재사용하고 규칙을 YAML로 버전 관리하기 위해 선택 |
+| 무중단 배포 | Argo Rollouts Blue/Green | Flagger, Kubernetes Rolling Update | 기존 Argo CD GitOps와 통합하고 준비된 새 버전으로 Service selector를 전환하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
 ## 현재 버전
@@ -55,12 +56,13 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
-| Notiflex 이미지 | `sha-066d7dd` (`sha256:720b4442c6555f7f5c93effd2e0ede60ec056ddf52711b79e976b01b866b3aaf`) | API `v0.1.3`, 코드-only push 후 CI-CD 자동 롤링 업데이트 |
+| Notiflex 이미지 | `sha-32c93b1` (`sha256:9f75202fb367c2ea41b87c14693b4ed28c6ed0e56c4483aa676be99273929baf`) | API `v0.2.0`, Blue/Green 30초 자동 승격 검증 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
 | Loki | chart `7.2.0` | Loki `3.6.11`, SingleBinary, filesystem 5Gi |
 | Fluent Bit | chart `0.57.9` | Fluent Bit `5.0.9`, 노드별 DaemonSet |
+| Argo Rollouts | `v1.9.1` | Blue/Green controller 및 Rollout CRD |
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
@@ -72,8 +74,9 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Deployment `notiflex-api` | `notiflex` | `sha-066d7dd`, 2/2 Ready |
+| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-32c93b1`, Healthy, stable·active `64945bbbcd`, 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
+| Service `notiflex-api-preview` | `notiflex` | Green ReplicaSet 검증용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 16/16 Up |
 | ConfigMap `notiflex-dashboard` | `monitoring` | Grafana sidecar 로딩 완료, CPU·메모리·재시작 패널 구성 |
@@ -84,6 +87,7 @@
 | Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True` |
 | HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
 | HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, GCP NEG endpoint 2개 Healthy |
+| Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
 
 ## TODO
 
@@ -109,3 +113,5 @@
 | ch4.3 | 기존 컨테이너 로그를 처음부터 읽자 Loki가 오래된 timestamp를 `entry too far behind`로 거부 | 과거 재수집 옵션을 제거하고 설치 이후 새 로그를 수집하는 안정적인 tail 구성으로 복원 |
 | ch5.2 | 리전 외부 Gateway가 active proxy-only subnet 부재로 Programmed=False | `default` VPC의 서울 리전에 `proxy-only-subnet`(`172.16.0.0/23`)을 생성해 외부 IP와 로드밸런서 프로비저닝 완료 |
 | ch5.2 | Gateway 생성 직후 백엔드가 `no healthy upstream`으로 HTTP 503 반환 | HealthCheckPolicy 적용 상태와 GCP backend health를 확인하고 endpoint 2개가 Healthy로 전환된 뒤 HTTP 200 재검증 |
+| ch5.3 | 로컬 환경에 Go 도구가 없어 `gofmt`와 `go test ./...`를 직접 실행하지 못함 | GitHub Actions run `30894204759`에서 테스트·이미지 빌드·매니페스트 갱신 전체 성공 확인 |
+| ch5.3 | 최초 Deployment→Rollout 리소스 종류 전환 중 외부 헬스 확인 1회가 5초 내 응답하지 않음 | 초기 전환 완료 후 Blue→Green 버전 배포 구간을 별도로 관찰해 Blue 유지, Green 준비, 자동 승격 및 `v0.2.0` HTTP 200 확인 |

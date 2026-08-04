@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
+Notiflex API `v0.2.0`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Argo Rollouts Rollout은 replica 2개를 Blue/Green 전략으로 운영합니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 Rollout 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
 
 ## 기술 스택
 
@@ -79,10 +79,10 @@ go run .
 ```bash
 gcloud builds submit app/ \
   --project=project-10edc337-9677-4dfc-91a \
-  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.1.3
+  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.2.0
 ```
 
-`main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/deployment.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
+`main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/rollout.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
 
 애플리케이션 매니페스트는 Argo CD가 `main` 브랜치의 `k8s/smb` 디렉터리에서 자동 동기화합니다. 초기 구성이나 수동 검증이 필요할 때는 다음 명령을 사용할 수 있습니다.
 
@@ -131,6 +131,18 @@ curl http://35.216.50.229/version
 ```
 
 현재 외부 IP는 `35.216.50.229`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
+
+## Blue/Green 배포
+
+Argo Rollouts `v1.9.1`이 `argo-rollouts` 네임스페이스에서 실행됩니다. `notiflex-api` Rollout은 새 Green ReplicaSet을 `notiflex-api-preview` Service에 연결하고 30초 동안 준비 상태를 유지한 뒤, `notiflex-api` active Service를 자동으로 전환합니다. 이전 Blue ReplicaSet은 전환 30초 후 scale down됩니다.
+
+```bash
+kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
+kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
+curl http://35.216.50.229/version
+```
+
+`v0.1.3` Blue가 외부 트래픽을 받는 동안 `v0.2.0` Green이 별도 ReplicaSet으로 준비되고, 자동 승격 후 active Service와 외부 응답이 `v0.2.0`으로 전환되는 것을 확인했습니다.
 
 ## 메트릭 모니터링
 
