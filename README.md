@@ -205,6 +205,8 @@ Codex를 포함한 AI 에이전트는 작업 전에 [AGENTS.md](AGENTS.md)를 �
 
 ch3 이후 주요 기술 선택의 근거와 검토한 대안은 [Architecture Decision Records](docs/architecture-decisions.md)에 시간 순서대로 누적합니다.
 
+비용 중단을 위해 실습 인프라를 삭제한 뒤 재구축할 때는 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)를 따릅니다.
+
 ```text
 $update-docs
 ```
