@@ -20,7 +20,7 @@
 | ch4 | 4.2 메트릭 모니터링 | ✅ | 2026-08-04 | kube-prometheus-stack 설치, active target 16개 Up 및 Notiflex 대시보드 로딩 검증 |
 | ch4 | 4.3 로그 수집 | ✅ | 2026-08-04 | Loki SingleBinary와 노드별 Fluent Bit 설치, Grafana 데이터소스 및 실시간 로그 조회 검증 |
 | ch4 | 4.4 알림 | 🚧 | | `PodRestartTooMany` 로드 및 health 확인 완료, 외부 receiver 연결·Firing 검증 대기 |
-| ch5 | 5.2 트래픽 관리 | ⬜ | | |
+| ch5 | 5.2 트래픽 관리 | ✅ | 2026-08-04 | GKE 리전 외부 Gateway·HTTPRoute·HealthCheckPolicy 구성, 외부 `/health`·`/id`·`/version` HTTP 200 검증 |
 | ch5 | 5.3 무중단 배포 | ⬜ | | |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
@@ -81,6 +81,9 @@
 | DaemonSet `fluent-bit` | `monitoring` | 2/2 Ready, Loki push 및 Kubernetes 라벨 확인 |
 | ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
 | PrometheusRule `pod-restart-alert` | `monitoring` | Operator 검증 완료, `PodRestartTooMany` health `ok`·현재 `inactive` |
+| Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True` |
+| HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
+| HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, GCP NEG endpoint 2개 Healthy |
 
 ## TODO
 
@@ -104,3 +107,5 @@
 | ch4.2 | GKE CoreDNS가 metrics 포트 9153을 노출하지 않아 target 2개 Down | chart의 `coreDns.enabled=false`로 불필요한 scrape target 제거, active target 16/16 Up 확인 |
 | ch4.3 | 노드 CPU 요청량이 약 938m/940m라 Fluent Bit Pod가 Pending | 실제 사용량과 limit를 확인하고 CPU request를 1m으로 낮춰 DaemonSet 2/2 배치 |
 | ch4.3 | 기존 컨테이너 로그를 처음부터 읽자 Loki가 오래된 timestamp를 `entry too far behind`로 거부 | 과거 재수집 옵션을 제거하고 설치 이후 새 로그를 수집하는 안정적인 tail 구성으로 복원 |
+| ch5.2 | 리전 외부 Gateway가 active proxy-only subnet 부재로 Programmed=False | `default` VPC의 서울 리전에 `proxy-only-subnet`(`172.16.0.0/23`)을 생성해 외부 IP와 로드밸런서 프로비저닝 완료 |
+| ch5.2 | Gateway 생성 직후 백엔드가 `no healthy upstream`으로 HTTP 503 반환 | HealthCheckPolicy 적용 상태와 GCP backend health를 확인하고 endpoint 2개가 Healthy로 전환된 뒤 HTTP 200 재검증 |

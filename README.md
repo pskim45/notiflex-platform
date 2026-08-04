@@ -119,6 +119,19 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply \
 
 Grafana의 **Explore**에서 데이터소스로 `Loki`를 선택한 뒤 `{namespace="monitoring"}` 또는 `{namespace="notiflex"}` LogQL 쿼리를 실행합니다. Fluent Bit 설치 이후 새로 출력된 로그부터 조회됩니다.
 
+## 외부 API 접근
+
+GKE Gateway API가 리전 외부 HTTP 로드밸런서를 구성합니다. `notiflex-gateway`의 `HTTPRoute`는 모든 경로를 `notiflex-api` Service로 전달하며, `HealthCheckPolicy`는 Pod의 `/health:8080`을 확인합니다.
+
+```bash
+kubectl --context gke-sysnet4admin_book_gitaiops get gateway,httproute -n notiflex
+curl http://35.216.50.229/health
+curl http://35.216.50.229/id
+curl http://35.216.50.229/version
+```
+
+현재 외부 IP는 `35.216.50.229`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
+
 ## 메트릭 모니터링
 
 Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter는 `kube-prometheus-stack` chart `88.1.3`으로 `monitoring` 네임스페이스에 설치됩니다. 재현 가능한 설정은 `helm-values/kube-prometheus.yaml`에 있습니다.
