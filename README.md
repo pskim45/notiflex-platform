@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. Prometheus가 클러스터 메트릭을 수집하고 Grafana가 기본 Kubernetes 대시보드와 Notiflex 전용 대시보드를 제공합니다.
+Notiflex API `v0.1.3`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 배포 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 GKE에 롤링 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
 
 ## 기술 스택
 
@@ -25,9 +25,10 @@ notiflex-platform/
 ├── argocd/
 │   └── notiflex-smb.yaml # Argo CD Application 선언
 ├── k8s/
-│   └── smb/              # Kubernetes 매니페스트
-├── helm-values/          # kube-prometheus-stack 경량 설정
-├── monitoring/           # Notiflex Grafana 대시보드
+│   ├── monitoring/       # PrometheusRule 등 관측성 매니페스트
+│   └── smb/              # 애플리케이션 Kubernetes 매니페스트
+├── helm-values/          # 관측성 Helm chart 경량 설정
+├── monitoring/           # Grafana 대시보드와 데이터소스
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
@@ -149,6 +150,20 @@ curl http://localhost:8080/health
 curl http://localhost:8080/version
 curl http://localhost:8080/id
 ```
+
+## 알림
+
+Alertmanager는 `kube-prometheus-stack`에 포함되어 실행됩니다. `PodRestartTooMany` 규칙은 `notiflex` 네임스페이스에서 같은 컨테이너가 5분 동안 3회 이상 재시작하고 그 상태가 1분간 지속되면 경고를 발생시킵니다.
+
+```bash
+kubectl --context gke-sysnet4admin_book_gitaiops apply \
+  -f k8s/monitoring/pod-restart-alert.yaml
+
+kubectl --context gke-sysnet4admin_book_gitaiops get \
+  prometheusrule pod-restart-alert -n monitoring
+```
+
+규칙은 Prometheus에서 `health: ok`로 로드된 것을 확인했습니다. 현재 외부 receiver가 없으므로 Firing 상태가 되어도 Slack이나 이메일로 전달되지는 않습니다. 수신 채널을 연결한 뒤 서비스에 영향을 주지 않는 테스트 워크로드로 Firing과 실제 메시지 수신을 추가 검증해야 합니다. 임계값은 초기값이며 운영 데이터와 오탐 빈도를 보고 조정합니다.
 
 ## AI 에이전트 사용
 

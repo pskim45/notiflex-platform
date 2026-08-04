@@ -6,7 +6,7 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.1.3`, Argo CD GitOps, GitHub Actions CI-CD, Prometheus·Grafana 메트릭 모니터링, Loki·Fluent Bit 중앙 로그 수집까지 구성되었다. 이후 알림과 점진적 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
+- 현재 단계: API `v0.1.3`, Argo CD GitOps, GitHub Actions CI-CD, Prometheus·Grafana 메트릭 모니터링, Loki·Fluent Bit 중앙 로그 수집까지 구성되었다. Pod 재시작 PrometheusRule은 로드됐으며 외부 알림 수신 채널과 Firing 검증은 남아 있다. 이후 점진적 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
@@ -18,6 +18,7 @@
 
 - `app/`: Go 소스, 테스트, 모듈 파일, Dockerfile
 - `k8s/smb/`: Notiflex Kubernetes 매니페스트
+- `k8s/monitoring/`: PrometheusRule 등 관측성 매니페스트
 - `.github/workflows/`: CI/CD 워크플로
 - `helm-values/`: Helm chart의 재현 가능한 경량 설정
 - `monitoring/`: Grafana 대시보드 등 모니터링 리소스

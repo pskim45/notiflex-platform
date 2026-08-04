@@ -19,7 +19,7 @@
 | ch3 | 3.5 CI-CD 연결 | ✅ | 2026-08-04 | 코드-only push로 `v0.1.3` 테스트·SHA 이미지 게시·매니페스트 커밋·Argo CD 자동 배포 검증 |
 | ch4 | 4.2 메트릭 모니터링 | ✅ | 2026-08-04 | kube-prometheus-stack 설치, active target 16개 Up 및 Notiflex 대시보드 로딩 검증 |
 | ch4 | 4.3 로그 수집 | ✅ | 2026-08-04 | Loki SingleBinary와 노드별 Fluent Bit 설치, Grafana 데이터소스 및 실시간 로그 조회 검증 |
-| ch4 | 4.4 알림 | ⬜ | | |
+| ch4 | 4.4 알림 | 🚧 | | `PodRestartTooMany` 로드 및 health 확인 완료, 외부 receiver 연결·Firing 검증 대기 |
 | ch5 | 5.2 트래픽 관리 | ⬜ | | |
 | ch5 | 5.3 무중단 배포 | ⬜ | | |
 | ch6 | 6.1 캐시 | ⬜ | | |
@@ -47,6 +47,7 @@
 | CI | GitHub Actions + Workload Identity Federation | Cloud Build Trigger, Jenkins, 서비스 계정 키 | GitHub push와 직접 연동하고 장기 키 없이 최소 권한으로 Artifact Registry에 게시 |
 | 메트릭 모니터링 | Prometheus + Grafana | Google Cloud Monitoring, Datadog | Kubernetes 표준 메트릭과 이후 Loki·Tempo를 Grafana에 통합하기 위해 선택 |
 | 로그 수집 | Loki + Fluent Bit | Elasticsearch, Grafana Alloy | 경량 구성으로 Kubernetes stdout/stderr 로그를 수집하고 기존 Grafana Explore에 통합하기 위해 선택 |
+| 알림 규칙 | PrometheusRule + Alertmanager | Grafana Alerting | kube-prometheus-stack의 기존 평가·라우팅 경로를 재사용하고 규칙을 YAML로 버전 관리하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
 ## 현재 버전
@@ -79,6 +80,12 @@
 | StatefulSet `loki`·Deployment `loki-gateway` | `monitoring` | Running, PVC 5Gi Bound, LogQL 조회 성공 |
 | DaemonSet `fluent-bit` | `monitoring` | 2/2 Ready, Loki push 및 Kubernetes 라벨 확인 |
 | ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
+| PrometheusRule `pod-restart-alert` | `monitoring` | Operator 검증 완료, `PodRestartTooMany` health `ok`·현재 `inactive` |
+
+## TODO
+
+- [ ] `PodRestartTooMany`의 현재 임계값(5분 내 3회 이상)은 초기값이다. 운영 데이터를 충분히 수집한 뒤 정상 재시작 빈도와 오탐 여부를 검토하여 시간 범위, 횟수, `for` 지속 시간을 조정한다.
+- [ ] Slack·이메일 등 Alertmanager 외부 receiver를 연결하고, 서비스에 영향을 주지 않는 테스트 워크로드로 `PodRestartTooMany`의 Firing과 실제 메시지 수신을 검증한다.
 
 ## 트러블슈팅 이력
 
