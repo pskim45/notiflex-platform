@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.2.2`가 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Argo Rollouts Rollout은 replica 2개를 Blue/Green 전략으로 운영합니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 Rollout 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
+Notiflex API `v0.2.2`와 Argo Rollouts Blue/Green 배포까지 검증한 뒤, 지속 비용을 중단하기 위해 2026-08-04에 GCP 실습 인프라를 삭제했습니다. GKE 클러스터, Gateway 로드밸런서, 영구 디스크, Artifact Registry 이미지와 Cloud Build 버킷은 현재 존재하지 않습니다. 코드·매니페스트·Helm values·CI 워크플로는 Git에 보존되어 있으며 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)에 따라 재구축할 수 있습니다.
 
 ## 기술 스택
 

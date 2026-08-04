@@ -23,6 +23,7 @@
 | ch5 | 5.2 트래픽 관리 | ✅ | 2026-08-04 | GKE 리전 외부 Gateway·HTTPRoute·HealthCheckPolicy 구성, 외부 `/health`·`/id`·`/version` HTTP 200 검증 |
 | ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환 및 `v0.2.2` 재배포에서 preview·30초 자동 승격·active 전환·구 버전 축소 검증 |
 | ch5 | 5.4 ADR | ✅ | 2026-08-04 | ch3~ch5의 아키텍처 결정 7건을 시간 순서로 정식 기록 |
+| 운영 | 비용 중단 | ✅ | 2026-08-04 | 복구 런북을 GitHub에 보존한 뒤 GKE·Gateway/LB·디스크·Artifact Registry·Cloud Build 버킷 삭제 |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |
@@ -53,7 +54,9 @@
 | 무중단 배포 | Argo Rollouts Blue/Green | Flagger, Kubernetes Rolling Update | 기존 Argo CD GitOps와 통합하고 준비된 새 버전으로 Service selector를 전환하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
-## 현재 버전
+## 종료 전 마지막 검증 버전
+
+> 2026-08-04 비용 중단으로 현재 실행 중인 GCP 워크로드는 없다. 아래는 삭제 직전 검증한 버전이다.
 
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
@@ -68,7 +71,9 @@
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
-## 현재 리소스
+## 종료 전 마지막 리소스 스냅샷
+
+> 현재 아래 리소스는 모두 삭제된 상태다. 재구축 절차는 `docs/shutdown-recovery.md`를 따른다.
 
 | 노드풀 | 머신 타입 | 노드 수 | 주요 워크로드 |
 |--------|-----------|---------|---------------|
