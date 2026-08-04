@@ -16,7 +16,7 @@
 | ch3 | 3.2 GitOps 도구 | ✅ | 2026-08-04 | Argo CD 3.3.6 설치, private GitHub 저장소 연결, `notiflex-smb` Synced/Healthy 확인 |
 | ch3 | 3.3 기능 추가 | ✅ | 2026-08-04 | `/version`에 앱·Go·Pod 정보 추가, `v0.1.2` 롤링 업데이트 및 응답 검증 |
 | ch3 | 3.4 CI | ✅ | 2026-08-04 | GitHub Actions와 Workload Identity Federation으로 테스트·SHA 이미지 빌드·푸시 자동화 |
-| ch3 | 3.5 CI-CD 연결 | ⬜ | | |
+| ch3 | 3.5 CI-CD 연결 | ✅ | 2026-08-04 | CI가 SHA 이미지 게시·매니페스트 커밋, Argo CD가 자동 롤링 배포하는 전체 흐름 검증 |
 | ch4 | 4.2 메트릭 모니터링 | ⬜ | | |
 | ch4 | 4.3 로그 수집 | ⬜ | | |
 | ch4 | 4.4 알림 | ⬜ | | |
@@ -43,7 +43,7 @@
 |------|------|-------------|----------|
 | 컨테이너 런타임 | GKE Standard (Zonal) | GKE Autopilot | 노드 구성과 단계별 플랫폼 확장을 직접 실습하기 위해 선택 |
 | 이미지 저장소 | Artifact Registry | Docker Hub | GCP IAM 및 Cloud Build와의 네이티브 통합 |
-| 이미지 빌드 | Cloud Build | 로컬 Docker 빌드 | 로컬 도구 의존 없이 GCP에서 테스트·빌드·푸시를 일관되게 수행 |
+| 이미지 빌드 | GitHub Actions Docker build | Cloud Build, 로컬 Docker 빌드 | 코드 push 시 테스트·SHA 이미지 빌드·Artifact Registry 게시를 자동화 |
 | CI | GitHub Actions + Workload Identity Federation | Cloud Build Trigger, Jenkins, 서비스 계정 키 | GitHub push와 직접 연동하고 장기 키 없이 최소 권한으로 Artifact Registry에 게시 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
@@ -52,7 +52,7 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25 | 최초 구성 |
-| Notiflex 이미지 | `v0.1.2` (`sha256:ef79a8929326f6f0fb8bdd5fa8041fb91b060f9cde0d57900d3d4ee67f04fc1f`) | `/version` 런타임 정보 확장 및 Argo CD 롤링 업데이트 |
+| Notiflex 이미지 | `sha-6cba756` (`sha256:78f815fad23e3068245052c6e91464b529c6daa4291d22857aad060affbca450`) | API `v0.1.2`, CI 매니페스트 커밋 및 Argo CD 자동 롤링 업데이트 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | Kafka | 미설치 | ch8 예정 |
@@ -66,7 +66,7 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Deployment `notiflex-api` | `notiflex` | 2/2 Ready |
+| Deployment `notiflex-api` | `notiflex` | `sha-6cba756`, 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
 
@@ -82,3 +82,4 @@
 | ch2.6 | Spot VM 노드가 모두 사라져 API Pod 2개가 `Pending` 상태로 유지됨 | `default-pool`을 2대로 resize한 뒤 노드 `Ready`, Deployment 2/2 및 Service 엔드포인트 복구 확인 |
 | ch3.4 | 조직 정책이 서비스 계정 키 생성을 차단 | Workload Identity Federation으로 전환해 GitHub OIDC 단기 인증 구성 |
 | ch3.4 | 최초 CI 실행에서 IAM 바인딩 전파 지연으로 이미지 push 403 | 동일 Job 재실행 후 테스트·빌드 및 `sha-962fe0e` 이미지 push 성공 |
+| ch3.5 | `set -e` 환경에서 변경을 확인하는 `git diff --quiet &&` 구문이 exit 1로 Step 중단 | 명시적인 `if git diff --quiet; then` 조건문으로 수정 후 전체 CI-CD 성공 |
