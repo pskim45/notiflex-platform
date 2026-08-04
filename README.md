@@ -137,6 +137,11 @@ curl http://35.216.50.229/version
 Argo Rollouts `v1.9.1`이 `argo-rollouts` 네임스페이스에서 실행됩니다. `notiflex-api` Rollout은 새 Green ReplicaSet을 `notiflex-api-preview` Service에 연결하고 30초 동안 준비 상태를 유지한 뒤, `notiflex-api` active Service를 자동으로 전환합니다. 이전 Blue ReplicaSet은 전환 30초 후 scale down됩니다.
 
 ```bash
+kubectl --context gke-sysnet4admin_book_gitaiops create namespace argo-rollouts
+kubectl --context gke-sysnet4admin_book_gitaiops apply --server-side \
+  -n argo-rollouts \
+  -f https://github.com/argoproj/argo-rollouts/releases/download/v1.9.1/install.yaml
+
 kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
 kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
 curl http://35.216.50.229/version
