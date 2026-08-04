@@ -8,7 +8,7 @@
 |------|---------|------|--------|------|
 | ch2 | 2.2 설치 확인 | ✅ | 2026-08-03 | Git, gcloud, kubectl, Codex 실행 환경 확인 |
 | ch2 | 2.3 gcloud 설정 | ✅ | 2026-08-03 | 프로젝트·서울 리전·존 및 활성 계정 확인 |
-| ch2 | 2.4 GitHub 저장소 | ✅ | 2026-08-03 | `pskim45/notiflex-platform` private 원격 저장소 연결 |
+| ch2 | 2.4 GitHub 저장소 | ✅ | 2026-08-03 | public 원격 저장소 `pskim45/notiflex-platform` 연결 |
 | ch2 | 2.5 GKE 클러스터 | ✅ | 2026-08-03 | GKE Standard, Spot `e2-medium` 2노드, Gateway API 활성화 |
 | ch2 | 2.6 빌드/배포 | ✅ | 2026-08-03 | Cloud Build 테스트 성공, `v0.1.0` 배포 및 API 검증 |
 | ch2 | 2.7 첫 커밋 | ✅ | 2026-08-03 | 코드·매니페스트·문서 최초 커밋 및 GitHub 푸시 |
@@ -51,7 +51,7 @@
 
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
-| Go | 1.25 | 최초 구성 |
+| Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
 | Notiflex 이미지 | `sha-066d7dd` (`sha256:720b4442c6555f7f5c93effd2e0ede60ec056ddf52711b79e976b01b866b3aaf`) | API `v0.1.3`, 코드-only push 후 CI-CD 자동 롤링 업데이트 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
