@@ -41,6 +41,12 @@ func TestVersion(t *testing.T) {
 	if body.Version != version {
 		t.Fatalf("version = %q, want %q", body.Version, version)
 	}
+	if body.GoVersion == "" {
+		t.Fatal("go_version is empty")
+	}
+	if body.Hostname != "test-pod" {
+		t.Fatalf("hostname = %q, want test-pod", body.Hostname)
+	}
 }
 
 func TestNextID(t *testing.T) {

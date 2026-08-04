@@ -5,12 +5,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"sync/atomic"
 	"time"
 )
 
-const version = "v0.1.1"
+const version = "v0.1.2"
 
 type api struct {
 	podName string
@@ -22,7 +23,9 @@ type healthResponse struct {
 }
 
 type versionResponse struct {
-	Version string `json:"version"`
+	Version   string `json:"version"`
+	GoVersion string `json:"go_version"`
+	Hostname  string `json:"hostname"`
 }
 
 type idResponse struct {
@@ -57,7 +60,11 @@ func newHandler(service *api) http.Handler {
 }
 
 func (a *api) version(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, versionResponse{Version: version})
+	writeJSON(w, http.StatusOK, versionResponse{
+		Version:   version,
+		GoVersion: runtime.Version(),
+		Hostname:  a.podName,
+	})
 }
 
 func (a *api) health(w http.ResponseWriter, _ *http.Request) {
