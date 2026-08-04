@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const version = "v0.1.1"
+
 type api struct {
 	podName string
 	counter atomic.Uint64
@@ -17,6 +19,10 @@ type api struct {
 
 type healthResponse struct {
 	Status string `json:"status"`
+}
+
+type versionResponse struct {
+	Version string `json:"version"`
 }
 
 type idResponse struct {
@@ -45,8 +51,13 @@ func main() {
 func newHandler(service *api) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", service.health)
+	mux.HandleFunc("GET /version", service.version)
 	mux.HandleFunc("GET /id", service.nextID)
 	return mux
+}
+
+func (a *api) version(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, versionResponse{Version: version})
 }
 
 func (a *api) health(w http.ResponseWriter, _ *http.Request) {

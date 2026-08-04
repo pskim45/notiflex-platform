@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.1.0`이 GKE에 배포되어 있습니다. `/health` 상태 확인과 Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. Argo CD `v3.3.6`이 `k8s/smb`를 자동 동기화하고 있으며, CI와 관측 가능성 구성은 이후 단계에서 추가합니다.
+Notiflex API `v0.1.1`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 실행 버전을 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Kubernetes Deployment는 replica 2개로 실행됩니다. Argo CD `v3.3.6`이 `k8s/smb`를 자동 동기화하고 있으며, CI와 관측 가능성 구성은 이후 단계에서 추가합니다.
 
 ## 기술 스택
 
@@ -76,7 +76,7 @@ Cloud Build로 이미지를 빌드하고 Artifact Registry에 게시합니다.
 ```bash
 gcloud builds submit app/ \
   --project=project-10edc337-9677-4dfc-91a \
-  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.1.0
+  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.1.1
 ```
 
 애플리케이션 매니페스트는 Argo CD가 `main` 브랜치의 `k8s/smb` 디렉터리에서 자동 동기화합니다. 초기 구성이나 수동 검증이 필요할 때는 다음 명령을 사용할 수 있습니다.
@@ -98,6 +98,7 @@ kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-smb -n
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops port-forward service/notiflex-api -n notiflex 8080:80
 curl http://localhost:8080/health
+curl http://localhost:8080/version
 curl http://localhost:8080/id
 ```
 

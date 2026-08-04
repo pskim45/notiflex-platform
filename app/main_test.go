@@ -25,6 +25,24 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestVersion(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/version", nil)
+	response := httptest.NewRecorder()
+	newHandler(&api{podName: "test-pod"}).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+
+	var body versionResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Version != version {
+		t.Fatalf("version = %q, want %q", body.Version, version)
+	}
+}
+
 func TestNextID(t *testing.T) {
 	handler := newHandler(&api{podName: "test-pod"})
 
