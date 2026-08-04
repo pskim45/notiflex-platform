@@ -21,7 +21,7 @@
 | ch4 | 4.3 로그 수집 | ✅ | 2026-08-04 | Loki SingleBinary와 노드별 Fluent Bit 설치, Grafana 데이터소스 및 실시간 로그 조회 검증 |
 | ch4 | 4.4 알림 | 🚧 | | `PodRestartTooMany` 로드 및 health 확인 완료, 외부 receiver 연결·Firing 검증 대기 |
 | ch5 | 5.2 트래픽 관리 | ✅ | 2026-08-04 | GKE 리전 외부 Gateway·HTTPRoute·HealthCheckPolicy 구성, 외부 `/health`·`/id`·`/version` HTTP 200 검증 |
-| ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환, `v0.1.3`→`v0.2.0` preview·30초 자동 승격·active 전환 검증 |
+| ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환 및 `v0.2.2` 재배포에서 preview·30초 자동 승격·active 전환·구 버전 축소 검증 |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |
@@ -56,7 +56,7 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
-| Notiflex 이미지 | `sha-32c93b1` (`sha256:9f75202fb367c2ea41b87c14693b4ed28c6ed0e56c4483aa676be99273929baf`) | API `v0.2.0`, Blue/Green 30초 자동 승격 검증 |
+| Notiflex 이미지 | `sha-bff731e` (`sha256:44f2772a69033b7df2d5f7387efe32a20833af373fef3f30768e2f88ea1c14e3`) | API `v0.2.2`, 기존 `v0.2.1` active 유지 중 Green 준비 후 30초 자동 승격 검증 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
@@ -74,7 +74,7 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-32c93b1`, Healthy, stable·active `64945bbbcd`, 2/2 Ready |
+| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-bff731e`, Healthy, stable·active `5447b84fd9`, 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Green ReplicaSet 검증용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
