@@ -11,7 +11,7 @@
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
 - GitOps: Argo CD를 기준으로 한다.
-- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit, Tempo를 사용한다.
+- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit을 사용하며 Tempo는 ch8에서 도입할 예정이다.
 - 배포 전략은 Rolling Update, Blue/Green, Canary 순으로 발전시킨다.
 
 ## 저장소 구조

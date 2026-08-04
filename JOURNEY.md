@@ -49,6 +49,7 @@
 | 메트릭 모니터링 | Prometheus + Grafana | Google Cloud Monitoring, Datadog | Kubernetes 표준 메트릭과 이후 Loki·Tempo를 Grafana에 통합하기 위해 선택 |
 | 로그 수집 | Loki + Fluent Bit | Elasticsearch, Grafana Alloy | 경량 구성으로 Kubernetes stdout/stderr 로그를 수집하고 기존 Grafana Explore에 통합하기 위해 선택 |
 | 알림 규칙 | PrometheusRule + Alertmanager | Grafana Alerting | kube-prometheus-stack의 기존 평가·라우팅 경로를 재사용하고 규칙을 YAML로 버전 관리하기 위해 선택 |
+| 외부 트래픽 관리 | GKE Gateway API | Ingress NGINX, Istio | GKE 네이티브 리전 외부 로드밸런서와 Kubernetes 표준 API를 별도 Controller 없이 사용하기 위해 선택 |
 | 무중단 배포 | Argo Rollouts Blue/Green | Flagger, Kubernetes Rolling Update | 기존 Argo CD GitOps와 통합하고 준비된 새 버전으로 Service selector를 전환하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 

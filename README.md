@@ -14,7 +14,7 @@ Notiflex API `v0.2.2`가 GKE에 배포되어 있습니다. `/health` 상태 확�
 - 런타임: GKE Standard(영역 클러스터, Spot VM)
 - 이미지 저장소: Artifact Registry
 - GitOps: Argo CD
-- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit, Tempo
+- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit (Tempo는 ch8 예정)
 - 배포 전략: Rolling Update → Blue/Green → Canary
 
 ## 디렉터리 구조
@@ -81,7 +81,7 @@ go run .
 ```bash
 gcloud builds submit app/ \
   --project=project-10edc337-9677-4dfc-91a \
-  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.2.2
+  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<VERSION>
 ```
 
 `main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/rollout.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
@@ -91,7 +91,7 @@ gcloud builds submit app/ \
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/smb/namespace.yaml
 kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/smb/
-kubectl --context gke-sysnet4admin_book_gitaiops rollout status deployment/notiflex-api -n notiflex
+kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
 ```
 
 GitOps 동기화 상태는 다음과 같이 확인합니다.
