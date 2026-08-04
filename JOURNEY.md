@@ -22,6 +22,7 @@
 | ch4 | 4.4 알림 | 🚧 | | `PodRestartTooMany` 로드 및 health 확인 완료, 외부 receiver 연결·Firing 검증 대기 |
 | ch5 | 5.2 트래픽 관리 | ✅ | 2026-08-04 | GKE 리전 외부 Gateway·HTTPRoute·HealthCheckPolicy 구성, 외부 `/health`·`/id`·`/version` HTTP 200 검증 |
 | ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환 및 `v0.2.2` 재배포에서 preview·30초 자동 승격·active 전환·구 버전 축소 검증 |
+| ch5 | 5.4 ADR | ✅ | 2026-08-04 | ch3~ch5의 아키텍처 결정 7건을 시간 순서로 정식 기록 |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |

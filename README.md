@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.2.0`이 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Argo Rollouts Rollout은 replica 2개를 Blue/Green 전략으로 운영합니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 Rollout 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
+Notiflex API `v0.2.2`가 GKE에 배포되어 있습니다. `/health` 상태 확인, 애플리케이션·Go·Pod 정보를 반환하는 `/version`, Pod별 순차 ID를 발급하는 `/id` API를 제공하며, Argo Rollouts Rollout은 replica 2개를 Blue/Green 전략으로 운영합니다. GitHub Actions가 `app/` 변경을 테스트하고 SHA 태그 이미지를 Artifact Registry에 게시한 뒤 Rollout 매니페스트를 자동 커밋하며, Argo CD `v3.3.6`이 이를 감지해 배포합니다. Prometheus와 Grafana가 메트릭을 제공하고, Loki와 Fluent Bit이 컨테이너 로그를 수집합니다. Alertmanager와 Pod 재시작 규칙은 구성됐으며 외부 알림 수신 채널은 아직 연결하지 않았습니다.
 
 ## 기술 스택
 
@@ -29,6 +29,8 @@ notiflex-platform/
 │   └── smb/              # 애플리케이션 Kubernetes 매니페스트
 ├── helm-values/          # 관측성 Helm chart 경량 설정
 ├── monitoring/           # Grafana 대시보드와 데이터소스
+├── docs/
+│   └── architecture-decisions.md # 시간순 아키텍처 결정 기록
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
@@ -79,7 +81,7 @@ go run .
 ```bash
 gcloud builds submit app/ \
   --project=project-10edc337-9677-4dfc-91a \
-  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.2.0
+  --tag=asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:v0.2.2
 ```
 
 `main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/rollout.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
@@ -147,7 +149,7 @@ kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
 curl http://35.216.50.229/version
 ```
 
-`v0.1.3` Blue가 외부 트래픽을 받는 동안 `v0.2.0` Green이 별도 ReplicaSet으로 준비되고, 자동 승격 후 active Service와 외부 응답이 `v0.2.0`으로 전환되는 것을 확인했습니다.
+최근 재배포에서는 `v0.2.1` Blue가 외부 트래픽을 받는 동안 `v0.2.2` Green이 별도 ReplicaSet으로 준비되고, 자동 승격 후 active Service와 외부 응답이 `v0.2.2`로 전환되는 것을 확인했습니다.
 
 ## 메트릭 모니터링
 
@@ -200,6 +202,8 @@ kubectl --context gke-sysnet4admin_book_gitaiops get \
 Codex를 포함한 AI 에이전트는 작업 전에 [AGENTS.md](AGENTS.md)를 읽어야 합니다. 이 파일에는 프로젝트 컨텍스트, GCP 대상, 검증 및 안전 규칙이 정의되어 있습니다.
 
 각 장을 마치면 저장소 전용 `$update-docs` 스킬로 그 시점의 코드·인프라와 모든 문서를 동기화하고 검증된 변경을 커밋합니다.
+
+ch3 이후 주요 기술 선택의 근거와 검토한 대안은 [Architecture Decision Records](docs/architecture-decisions.md)에 시간 순서대로 누적합니다.
 
 ```text
 $update-docs
