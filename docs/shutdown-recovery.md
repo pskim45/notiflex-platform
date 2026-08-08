@@ -8,10 +8,12 @@
 - 리전/존: `asia-northeast3` / `asia-northeast3-a`
 - 클러스터: GKE Standard `notiflex-cluster`
 - 노드풀: `default-pool` Spot `e2-medium` 2대와 역할별 `api-pool`·`worker-pool`·`ops-pool` 각 1대
-- 애플리케이션: `v0.3.2`, 이미지 태그 `sha-059f3ab`
+- 애플리케이션: `v0.5.0`, 이미지 태그 `sha-eee42f5`
 - 배포: Argo CD + Argo Rollouts Canary
 - 외부 진입점: GKE 리전 외부 Gateway API
-- 관측성: kube-prometheus-stack, Loki, Fluent Bit
+- 메시징: Strimzi `0.51.0`, Kafka `4.1.0`, `notifications` Topic
+- 관측성: kube-prometheus-stack, Loki, Fluent Bit, Tempo `2.9.0`, OpenTelemetry
+- 운영 자동화: `notiflex-healthcheck` CronJob, 5분 주기, `ops-pool`
 - 멀티테넌시: `notiflex`(SMB)·`enterprise` namespace별 API/RBAC/Quota, 공유 Valkey
 - 상태·시크릿: Valkey, GCP Secret Manager, Workload Identity, GKE managed CSI
 
@@ -159,7 +161,7 @@ Argo CD App of Apps가 `notiflex-smb`를 동기화하면 Gateway, HTTPRoute, Hea
 
 ## 6. 관측성 복구
 
-관측성 구성은 별도 Helm CLI 명령으로 설치하지 않는다. 7단계에서 `root-app`을 적용하면 `kube-prometheus`·`loki`·`fluent-bit` Application과 `monitoring-config` Application이 chart와 추가 YAML을 자동 동기화한다.
+관측성 구성은 별도 Helm CLI 명령으로 설치하지 않는다. 7단계에서 `root-app`을 적용하면 `kube-prometheus`·`loki`·`fluent-bit`·`tempo` Application과 `monitoring-config` Application이 chart와 추가 YAML을 자동 동기화한다. Strimzi Operator와 Kafka도 각각 `strimzi`·`kafka` Application이 wave 1→2 순서로 복구한다.
 
 새 Loki PVC와 빈 데이터 디스크가 만들어진다. 과거 로그는 돌아오지 않는다.
 
@@ -245,6 +247,9 @@ kubectl --context gke-sysnet4admin_book_gitaiops auth can-i delete pods --as=sys
 kubectl --context gke-sysnet4admin_book_gitaiops get gateway,httproute -n notiflex
 kubectl --context gke-sysnet4admin_book_gitaiops get pvc -A
 kubectl --context gke-sysnet4admin_book_gitaiops get secretproviderclass,secretproviderclasspodstatus -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops get kafka,kafkatopic -n kafka
+kubectl --context gke-sysnet4admin_book_gitaiops get statefulset tempo -n monitoring
+kubectl --context gke-sysnet4admin_book_gitaiops get cronjob notiflex-healthcheck -n notiflex
 ```
 
 Gateway의 새 외부 IP를 조회해 API를 검증한다.

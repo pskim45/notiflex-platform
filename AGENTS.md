@@ -6,12 +6,12 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.3.2`, Canary, 역할별 노드풀, Argo CD App of Apps와 namespace 기반 멀티테넌시까지 실행·검증했다. SMB와 Enterprise API는 각각 `notiflex`·`enterprise`에서 실행되고 RBAC·ResourceQuota는 분리되지만 Valkey와 credential은 공유한다. `root-app`은 하위 Application 8개를 Git에서 관리하며 모두 auto-sync/prune/selfHeal을 사용한다. sync wave는 0(namespace) → 1(backend) → 2(수집기·설정·tenant API) 순서다. Helm 앱은 CLI가 아니라 `argocd/apps/`의 chart 선언과 `helm-values/`로 변경한다. 두 API는 `api-pool`에 배치된다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
+- 현재 단계: API `v0.5.0`, Canary, 역할별 노드풀, App of Apps, namespace 멀티테넌시, Kafka 비동기 메시징, Tempo 분산 트레이싱과 CronJob 헬스체크까지 실행·검증했다. SMB와 Enterprise API는 `notiflex`·`enterprise`에서 실행되고 RBAC·ResourceQuota는 분리되지만 Valkey와 credential은 공유한다. `root-app`은 하위 Application 11개를 Git에서 관리하며 모두 auto-sync/prune/selfHeal을 사용한다. sync wave는 0(namespace) → 1(backend/operator) → 2(메시징·트레이싱·수집기·설정·tenant API) 순서다. Helm 앱은 CLI가 아니라 `argocd/apps/`의 chart 선언과 `helm-values/`로 변경한다. 두 API는 `api-pool`, Kafka·Tempo는 `worker-pool`, 헬스체크 CronJob은 `ops-pool`에 배치된다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
 - GitOps: Argo CD를 기준으로 한다.
-- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit을 사용하며 Tempo는 ch8에서 도입할 예정이다.
+- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit, Tempo와 OpenTelemetry를 사용한다.
 - 배포 전략은 Rolling Update와 Blue/Green을 거쳐 Argo Rollouts Canary로 전환했다.
 
 ## 저장소 구조
@@ -20,11 +20,13 @@
 - `k8s/smb/`: Notiflex Kubernetes 매니페스트
 - `k8s/enterprise/`: Enterprise tenant의 API, identity, RBAC, ResourceQuota 매니페스트
 - `k8s/monitoring/`: PrometheusRule 등 관측성 매니페스트
+- `k8s/kafka/`: Strimzi Kafka cluster와 Topic 매니페스트
 - `.github/workflows/`: CI/CD 워크플로
 - `helm-values/`: Helm chart의 재현 가능한 경량 설정
 - `monitoring/`: Grafana 대시보드 등 모니터링 리소스
 - `claude-context/architecture.md`: 현재 컴포넌트, 연결 관계, namespace, 핵심 설정을 담은 아키텍처 스냅샷. 아키텍처 변경 전 읽고 변경 후 실측 상태로 갱신한다.
 - `JOURNEY.md`: 실습 진행 상태, 선택 이유, 버전, 리소스 및 트러블슈팅 기록. 파일이 존재하면 작업 전 읽고, 단계 완료 후 실제 결과만 반영한다.
+- `command-guardrails/`: Kafka Topic 삭제, CronJob 수동 실행, tenant Namespace 삭제 같은 위험 작업의 사전 확인·승인·검증 절차. 해당 작업 전에 관련 문서를 읽는다.
 
 ## 고정 GCP 설정
 

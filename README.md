@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. SMB와 Enterprise는 각각 `notiflex`·`enterprise` namespace의 독립 Canary Rollout으로 배포되며, RBAC와 ResourceQuota도 분리됩니다. 두 환경은 현재 Valkey와 Secret Manager credential을 공유하므로 배포·권한·자원은 분리되지만 데이터는 분리되지 않습니다. Argo CD App of Apps가 전체 구성을 Git에서 관리하며 9개 Application은 `Synced/Healthy`입니다.
+Notiflex API `v0.5.0`가 GKE의 전용 `api-pool`에서 실행 중입니다. SMB와 Enterprise는 각각 `notiflex`·`enterprise` namespace의 독립 Canary Rollout으로 배포되며, RBAC와 ResourceQuota도 분리됩니다. 두 환경은 현재 Valkey와 Secret Manager credential을 공유하므로 배포·권한·자원은 분리되지만 데이터는 분리되지 않습니다. SMB API는 Kafka로 알림 이벤트를 비동기 전달하고 두 API는 Tempo로 Trace를 보냅니다. Argo CD App of Apps가 전체 구성을 Git에서 관리하며 root 포함 12개 Application은 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
@@ -14,7 +14,8 @@ Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. SMB
 - 런타임: GKE Standard(영역 클러스터, Spot VM)
 - 이미지 저장소: Artifact Registry
 - GitOps: Argo CD
-- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit (Tempo는 ch8 예정)
+- 비동기 메시징: Strimzi, Kafka
+- 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit, Tempo, OpenTelemetry
 - 상태 공유: Valkey standalone
 - 시크릿: GCP Secret Manager, Workload Identity, GKE managed Secrets Store CSI
 - 배포 전략: Rolling Update → Blue/Green → Argo Rollouts Canary
@@ -30,6 +31,7 @@ notiflex-platform/
 │   ├── root-app.yaml     # 모든 하위 Application의 GitOps 진입점
 │   └── apps/             # API와 Helm chart별 Application 선언
 ├── k8s/
+│   ├── kafka/            # Strimzi Kafka cluster와 Topic
 │   ├── monitoring/       # PrometheusRule 등 관측성 매니페스트
 │   ├── enterprise/       # Enterprise tenant API·identity·RBAC·quota
 │   └── smb/              # 애플리케이션 Kubernetes 매니페스트
@@ -38,6 +40,7 @@ notiflex-platform/
 ├── docs/
 │   ├── architecture-decisions.md # 시간순 아키텍처 결정 기록
 │   └── shutdown-recovery.md      # 비용 중단 후 환경 복구 런북
+├── command-guardrails/   # 위험 운영 작업의 확인·승인·검증 절차
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
@@ -107,9 +110,9 @@ kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 root sync 순서는 Application annotation으로 고정한다.
 
 ```text
-wave 0: bootstrap — notiflex·enterprise·monitoring namespace
-wave 1: valkey, kube-prometheus, loki — 데이터·관측성 backend
-wave 2: fluent-bit, monitoring-config, notiflex-smb, notiflex-enterprise — 수집기·설정·tenant API
+wave 0: bootstrap — notiflex·enterprise·monitoring·kafka namespace
+wave 1: valkey, kube-prometheus, loki, strimzi — 데이터·관측성 backend와 Kafka operator
+wave 2: kafka, tempo, fluent-bit, monitoring-config, notiflex-smb, notiflex-enterprise — 메시징·트레이싱·수집기·설정·tenant API
 ```
 
 ## 멀티테넌시
@@ -173,7 +176,15 @@ kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
 curl http://35.216.50.229/version
 ```
 
-`v0.3.1`에서 `v0.3.2`로 재배포하면서 step 1(20%), step 3(50%), step 5(80%)의 30초 pause와 step 6(100%) 완료를 확인했습니다. 현재 replica가 1이고 HTTPRoute가 stable Service만 참조하므로 이 weight는 Rollout 진행 단계이며 Gateway 수준의 정밀한 요청 비율은 아닙니다. 실제 20/50/80 트래픽 분할은 ch7 노드풀·replica 확장 후 Gateway API traffic routing 연동으로 고도화해야 합니다.
+현재 `v0.5.0`/`sha-eee42f5`가 step 6(100%)에서 Healthy입니다. 현재 replica가 1이고 HTTPRoute가 stable Service만 참조하므로 이 weight는 Rollout 진행 단계이며 Gateway 수준의 정밀한 요청 비율은 아닙니다. 실제 20/50/80 트래픽 분할에는 replica 확장과 Gateway API traffic routing 연동이 필요합니다.
+
+## 비동기 메시징과 분산 트레이싱
+
+Strimzi `0.51.0`이 Kafka `4.1.0` KRaft 단일 브로커와 `notifications` Topic(3 partitions)을 관리합니다. SMB API는 `/id` 처리 후 이벤트를 Kafka에 기록하고 Consumer Group이 비동기로 처리합니다. Kafka와 Tempo는 `worker-pool`에 배치됩니다.
+
+API는 OpenTelemetry OTLP gRPC로 Tempo `2.9.0`에 Trace를 전송합니다. Grafana의 Tempo 데이터소스에서 `notiflex-api` HTTP 요청과 `valkey.incr`, `kafka.produce`, `kafka.consume` Span의 연결을 조회할 수 있습니다.
+
+`notiflex-healthcheck` CronJob은 `ops-pool`에서 5분마다 내부 SMB API `/health`를 호출하도록 구성했습니다. 수정된 템플릿의 수동 Job은 HTTP 200을 확인했지만, 수정 전 생성된 실패 Job이 `Forbid` 정책으로 후속 예약 실행을 막고 있어 해당 Job을 승인 후 정리해야 합니다. 수동 실행과 정리는 예약 실행과의 중복 및 부작용을 확인한 뒤 [CronJob 수동 실행 절차](command-guardrails/cronjob-manual-run.md)를 따릅니다.
 
 ## 메트릭 모니터링
 
@@ -227,6 +238,8 @@ ch3 이후 주요 기술 선택의 근거와 검토한 대안은 [Architecture D
 현재 클러스터의 컴포넌트, 연결 관계, 배포·credential·관측성 설정은 [현재 아키텍처](claude-context/architecture.md)에서 한눈에 확인할 수 있습니다.
 
 비용 중단을 위해 실습 인프라를 삭제한 뒤 재구축할 때는 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)를 따릅니다.
+
+Kafka Topic 삭제, CronJob 수동 실행, 테넌트 Namespace 삭제처럼 영향이 큰 작업은 [운영 가드레일](command-guardrails/)의 사전 확인·승인·사후 검증 절차를 따릅니다.
 
 ```text
 $update-docs

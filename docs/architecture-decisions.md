@@ -144,3 +144,36 @@
 - 고객별 Argo CD Application과 Canary Rollout으로 한 고객의 배포 변경을 다른 고객과 독립적으로 진행할 수 있다.
 - Enterprise는 외부 Gateway에 연결하지 않은 ClusterIP Service만 사용해 현재 노출 범위를 최소화한다.
 - 공유 Valkey의 `notiflex:id`와 공유 credential은 데이터 경계를 만들지 않는다. 운영에서 강한 격리가 필요하면 고객별 Valkey·credential·NetworkPolicy 또는 별도 클러스터를 적용해야 한다.
+
+## ADR-014: 비동기 알림 이벤트는 Kafka와 Strimzi로 처리 (8장)
+
+**시점**: 2026-08 / **결정**: SMB API가 알림 이벤트를 Kafka `notifications` Topic에 기록하고 Consumer Group이 비동기로 처리한다. Kafka는 Strimzi Operator가 KRaft 모드로 관리하며 학습 환경에서는 단일 dual-role broker를 사용한다.
+
+**이유**:
+
+- API가 알림 처리 완료를 기다리지 않고 응답할 수 있고, 실패한 처리는 Kafka에 보존된 이벤트를 다시 소비할 수 있다.
+- Kafka cluster와 Topic을 CRD로 선언해 기존 Argo CD GitOps 흐름에 포함한다.
+- RabbitMQ, NATS, Valkey Streams보다 운영 부담은 크지만 partition, Consumer Group과 재처리 흐름을 학습하기에 적합하다.
+- 단일 broker와 replication factor 1은 고가용성 구성이 아니므로 운영 환경에서는 다중 broker와 복제 설정이 필요하다.
+
+## ADR-015: 분산 트레이싱은 OpenTelemetry와 Tempo로 통합 (8장)
+
+**시점**: 2026-08 / **결정**: API에 OpenTelemetry SDK를 적용하고 OTLP로 Tempo에 전송한다. Grafana를 Trace 조회 UI로 재사용하며 HTTP, Valkey, Kafka produce/consume 구간을 하나의 Trace로 연결한다.
+
+**이유**:
+
+- OTLP 표준을 사용해 특정 추적 backend에 애플리케이션 코드를 종속시키지 않는다.
+- 기존 Grafana에서 Prometheus 메트릭, Loki 로그와 Tempo Trace를 함께 조회할 수 있다.
+- Jaeger·Zipkin을 별도 UI와 함께 운영하는 대신 현재 관측성 스택에 경량 SingleBinary를 추가한다.
+- 실제 Trace에서 `notiflex-api`, `valkey.incr`, `kafka.produce`, `kafka.consume` Span 연결을 확인했다.
+
+## ADR-016: 단순 주기 작업은 Kubernetes CronJob으로 실행 (8장)
+
+**시점**: 2026-08 / **결정**: 내부 API 헬스체크를 `notiflex-healthcheck` CronJob으로 선언하고 `ops-pool`에서 5분마다 실행한다. 외부 scheduler나 Argo Workflows는 도입하지 않는다.
+
+**이유**:
+
+- 단일 HTTP 헬스체크에는 Kubernetes 기본 schedule, history와 retry 기능이면 충분하다.
+- `concurrencyPolicy: Forbid`로 중복 실행을 방지하고 GitOps 매니페스트로 실행 설정을 버전 관리한다.
+- 복잡한 DAG나 장시간 workflow가 없으므로 별도 workflow controller의 운영 비용을 피한다.
+- 수동 실행과 정리는 자동 schedule과 별개이므로 `command-guardrails/cronjob-manual-run.md`의 확인·승인·검증 절차를 따른다.

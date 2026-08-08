@@ -21,7 +21,7 @@
 | GKE 기능 | Gateway API, Secret Manager add-on, Workload Identity/GKE metadata server |
 | 외부 진입점 | Regional External Managed Gateway, `35.216.50.229:80` |
 
-`default-pool`은 `e2-medium` 2대로 관측성·컨트롤러를 실행한다. `api-pool`은 `e2-medium` 1대로 SMB와 Enterprise API를 전담하고, `worker-pool`은 `e2-standard-2` 1대에서 공유 Valkey를 실행하며 향후 Kafka를 받을 준비가 되어 있다. `ops-pool`은 `e2-small` 1대로 향후 운영 작업을 받는다. 새 풀은 모두 `pd-standard` 50GiB, Spot, `GKE_METADATA`를 사용하며 taint는 적용하지 않았다.
+`default-pool`은 `e2-medium` 2대로 관측성·컨트롤러를 실행한다. `api-pool`은 `e2-medium` 1대로 SMB와 Enterprise API를 전담하고, `worker-pool`은 `e2-standard-2` 1대에서 공유 Valkey·Kafka·Tempo를 실행한다. `ops-pool`은 `e2-small` 1대로 헬스체크 CronJob을 받는다. 새 풀은 모두 `pd-standard` 50GiB, Spot, `GKE_METADATA`를 사용하며 taint는 적용하지 않았다.
 
 ## 컴포넌트와 연결 관계
 
@@ -35,11 +35,14 @@ GKE Regional External Gateway (notiflex-gateway, 35.216.50.229)
 stable Service notiflex-api :80
   │ targetPort http/:8080, Rollout이 stable ReplicaSet selector 관리
   ▼
-Argo Rollout notiflex-api (replicas 1, api-pool nodeSelector, image sha-059f3ab, API v0.3.2)
+Argo Rollout notiflex-api (replicas 1, api-pool nodeSelector, image sha-eee42f5, API v0.5.0)
   │
   ├─ DNS/TCP ──▶ valkey-primary.notiflex.svc.cluster.local:6379
   │               └─ Valkey StatefulSet 1 Pod, standalone, 공유 키 notiflex:id
   │
+  ├─ Kafka ─────▶ notifications Topic (3 partitions, Kafka 4.1.0)
+  │               └─ Consumer Group notiflex-api가 비동기 처리
+  ├─ OTLP gRPC ─▶ Tempo :4317
   └─ CSI mount ─▶ /mnt/secrets/valkey-password
                   └─ SecretProviderClass notiflex-secrets
                      └─ GCP Secret Manager valkey-password/versions/latest
@@ -55,13 +58,19 @@ enterprise/notiflex-api Service
   ▼
 enterprise/notiflex-api Canary Rollout (replicas 1, api-pool)
   ├─ DNS/TCP ──▶ 위와 같은 공유 Valkey와 notiflex:id
+  ├─ OTLP gRPC ─▶ Tempo :4317
   └─ CSI mount ─▶ 위와 같은 Secret Manager credential
+
+CronJob notiflex-healthcheck (*/5 * * * *, ops-pool)
+  └─ HTTP GET ──▶ notiflex-api.notiflex.svc.cluster.local/health
 ```
 
 ### 애플리케이션
 
 - Go 표준 `net/http` 서버이며 컨테이너 포트는 `8080`이다.
 - `GET /health`는 상태, `GET /version`은 앱·Go·Pod 정보, `GET /id`는 Valkey `INCR notiflex:id` 결과를 반환한다.
+- SMB API는 `/id` 이벤트를 Kafka `notifications` Topic에 produce하고 Consumer Group으로 비동기 처리한다.
+- OpenTelemetry는 HTTP·Valkey·Kafka produce/consume Span을 OTLP gRPC로 Tempo에 전송한다.
 - `VALKEY_ADDR`는 내부 DNS로 고정하고, credential은 `VALKEY_PASSWORD_FILE`의 읽기 전용 파일에서 읽는다.
 - readiness는 `/health`를 최초 2초 뒤 5초마다, liveness는 최초 5초 뒤 10초마다 검사한다.
 - 리소스는 request `25m/32Mi`, limit `200m/64Mi`이다. non-root, read-only root filesystem, capability 전체 제거, RuntimeDefault seccomp를 사용한다.
@@ -94,7 +103,7 @@ enterprise/notiflex-api Canary Rollout (replicas 1, api-pool)
      → Artifact Registry notiflex/api:sha-<7자리 커밋>
      → k8s/smb/rollout.yaml 이미지 태그 자동 커밋
   → Argo CD root-app
-     → argocd/apps의 하위 Application 8개를 wave 0→1→2로 등록
+     → argocd/apps의 하위 Application 11개를 wave 0→1→2로 등록
      → notiflex-smb는 k8s/smb, notiflex-enterprise는 k8s/enterprise 감시
      → Helm 앱은 외부 chart + helm-values 감시
      → 모든 앱 auto-sync + prune + selfHeal
@@ -104,7 +113,7 @@ enterprise/notiflex-api Canary Rollout (replicas 1, api-pool)
 
 - GitHub Actions 권한은 `id-token: write`, `contents: write`이다. 장기 GCP 키 대신 OIDC를 사용하며 repository secrets에는 provider·service account·project 식별자만 둔다.
 - Artifact Registry 경로는 `asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<TAG>`이다.
-- `root-app`은 `argocd/apps/`를 감시한다. wave 0 `bootstrap`, wave 1 `valkey`·`kube-prometheus`·`loki`, wave 2 `fluent-bit`·`monitoring-config`·`notiflex-smb`·`notiflex-enterprise` 순서로 등록하며 root와 하위 앱 8개, 총 9개 Application이 모두 Synced/Healthy이다.
+- `root-app`은 `argocd/apps/`를 감시한다. wave 0 `bootstrap`, wave 1 `valkey`·`kube-prometheus`·`loki`·`strimzi`, wave 2 `kafka`·`tempo`·`fluent-bit`·`monitoring-config`·`notiflex-smb`·`notiflex-enterprise` 순서로 등록하며 root와 하위 앱 11개, 총 12개 Application이 모두 Synced/Healthy이다.
 - Helm 앱은 외부 chart의 고정 버전과 이 저장소의 `helm-values/`를 다중 source로 결합한다. 기존 Valkey·Grafana credential Secret을 명시적으로 재사용하며 일상 운영에서 Helm CLI를 실행하지 않는다.
 - 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `7f56884766`이다.
 
@@ -118,7 +127,7 @@ enterprise/notiflex-api Canary Rollout (replicas 1, api-pool)
 | Loki | chart `7.2.0`, 앱 `3.6.11`; SingleBinary 1 replica, filesystem PVC 5Gi, 인증 비활성 |
 | Fluent Bit | chart `0.57.9`, 앱 `5.0.9`; 노드별 DaemonSet이 컨테이너 로그를 읽어 `loki-gateway.monitoring.svc:80`으로 전송 |
 | GKE managed collectors | `gmp-system` collector 5/5와 GKE metrics agent가 노드 메트릭을 수집 |
-| Tempo | 아직 설치하지 않았으며 ch8에서 도입 예정 |
+| Tempo | chart `1.24.4`, 앱 `2.9.0`; SingleBinary 1 replica, 24h retention, OTLP gRPC `4317`·HTTP `4318`, Grafana 데이터소스 연동 |
 
 Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready이다. Grafana와 Prometheus는 ClusterIP이므로 기본적으로 클러스터 내부 접근 또는 port-forward를 사용한다.
 
@@ -126,12 +135,13 @@ Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready�
 
 | Namespace | 주요 컴포넌트 |
 |---|---|
-| `notiflex` | API Rollout/Pod, stable·preview Service, Gateway, HTTPRoute, HealthCheckPolicy, Valkey StatefulSet, ServiceAccount, SecretProviderClass |
+| `notiflex` | API Rollout/Pod, stable·preview Service, Gateway, HTTPRoute, HealthCheckPolicy, Valkey StatefulSet, 헬스체크 CronJob, ServiceAccount, SecretProviderClass |
 | `enterprise` | 고객 전용 API Rollout/Pod, stable·preview ClusterIP Service, ServiceAccount, SecretProviderClass, 조회 전용 RBAC, ResourceQuota |
-| `argocd` | Application controller, API server, repo server, Dex, Redis; `root-app`과 하위 Application 8개 모두 Synced/Healthy |
+| `argocd` | Application controller, API server, repo server, Dex, Redis; `root-app`과 하위 Application 11개 모두 Synced/Healthy |
 | `argo-rollouts` | Argo Rollouts controller `v1.9.1` 1/1 Ready |
-| `monitoring` | Prometheus, Grafana, Alertmanager, Loki, Fluent Bit, kube-state-metrics, node-exporter, PrometheusRule |
+| `monitoring` | Prometheus, Grafana, Alertmanager, Loki, Fluent Bit, Tempo, kube-state-metrics, node-exporter, PrometheusRule |
+| `kafka` | Strimzi operator, Kafka `notiflex-kafka` KRaft broker/controller, `notifications` KafkaTopic |
 | `kube-system` | GKE DNS/네트워크/메트릭 구성과 Secret Manager CSI driver/provider·metadata server 각 5/5 Ready |
 | `gmp-system` | Google Managed Prometheus operator·collector |
 
-현재 SMB와 Enterprise API Pod는 `api-pool`, 공유 Valkey Pod는 `worker-pool`에서 Running이다. Enterprise는 외부 Gateway 없이 내부 ClusterIP로만 노출된다. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 환경이 동일한 `notiflex:id`를 공유함을 확인했다. 즉 namespace·RBAC·quota·배포는 분리되지만 데이터와 credential은 분리되지 않는다. wave 설정 도입 중 namespace 소유권 이전으로 Valkey PVC가 재생성되어 공유 ID는 1부터 다시 시작했다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.
+현재 SMB와 Enterprise API Pod는 `api-pool`, 공유 Valkey·Kafka·Tempo는 `worker-pool`에 배치된다. 헬스체크 CronJob도 `ops-pool` 배치와 수동 Job 성공을 확인했지만, 수정 전 생성된 실패 Job이 `Forbid` 정책으로 후속 예약 실행을 막고 있어 승인 후 정리가 필요하다. Enterprise는 외부 Gateway 없이 내부 ClusterIP로만 노출된다. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 환경이 동일한 `notiflex:id`를 공유함을 확인했다. 즉 namespace·RBAC·quota·배포는 분리되지만 데이터와 credential은 분리되지 않는다. 실제 Trace에서 HTTP→Valkey→Kafka produce→consume Span 연결을 확인했다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.

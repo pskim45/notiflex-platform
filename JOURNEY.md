@@ -36,6 +36,7 @@
 | ch8 | 8.1 메시징 | ✅ | 2026-08-08 | Strimzi `0.51.0`·Kafka `4.1.0` KRaft 단일 브로커와 `notifications` Topic을 GitOps로 설치하고 API Producer/Consumer·외부 `/id` 이벤트 수신 검증 |
 | ch8 | 8.2 트레이싱 | ✅ | 2026-08-08 | Tempo SingleBinary와 Grafana 데이터소스, OTel SDK를 GitOps로 설치하고 실제 Trace에서 HTTP→Valkey→Kafka produce→consume Span 연결 검증 |
 | ch8 | 8.3 CronJob | ✅ | 2026-08-08 | `notiflex-healthcheck`가 5분마다 내부 API `/health`를 점검하도록 선언하고 ops-pool 배치·성공 Job 로그 검증 |
+| ch8 | 위험 작업 가드레일 | ✅ | 2026-08-08 | Kafka Topic 삭제·CronJob 수동 실행·테넌트 Namespace 삭제의 사전 확인, 승인, 실행, 검증 및 중단 조건을 절차서로 기록 |
 | ch9 | 9.1 저장소 분석 | ⬜ | | |
 | ch9 | 9.2 회고 | ⬜ | | |
 | ch9 | 9.3 온보딩 문서 | ⬜ | | |
@@ -93,7 +94,7 @@
 | `default-pool` | `e2-medium` Spot VM | 2 | 관측성, Argo CD 및 컨트롤러 |
 | `api-pool` | `e2-medium` Spot VM | 1 | SMB·Enterprise `notiflex-api` 각 1 replica |
 | `worker-pool` | `e2-standard-2` Spot VM | 1 | Valkey, Strimzi operator, Kafka broker·Topic Operator, Tempo SingleBinary |
-| `ops-pool` | `e2-small` Spot VM | 1 | 향후 운영/CronJob 배치, 현재 시스템 DaemonSet만 실행 |
+| `ops-pool` | `e2-small` Spot VM | 1 | `notiflex-healthcheck` CronJob과 시스템 DaemonSet |
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
@@ -104,7 +105,7 @@
 | Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 11개 자동 등록, 전체 12개 Application Synced/Healthy |
 | Application `bootstrap` | `argocd` | wave 0에서 `notiflex`·`enterprise`·`monitoring`·`kafka` namespace 관리, Synced/Healthy |
 | Application `strimzi`·`kafka` | `argocd` | wave 1 operator → wave 2 cluster/topic 순서, 모두 Synced/Healthy |
-| Application `tempo` | `argocd` | chart `1.24.4`, ops-pool 배치, Synced/Healthy |
+| Application `tempo` | `argocd` | chart `1.24.4`, worker-pool 배치, Synced/Healthy |
 | Application `valkey`·`kube-prometheus`·`loki`·`fluent-bit` | `argocd` | 외부 Helm chart + Git values 다중 source, 모두 Synced/Healthy |
 | Application `monitoring-config` | `argocd` | `monitoring/`과 `k8s/monitoring/` 일반 YAML 관리, Synced/Healthy |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 28/28 Up |
@@ -116,6 +117,7 @@
 | Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True`, `GatewayHealthy=True` |
 | HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
 | HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, Gateway backend Healthy |
+| CronJob `notiflex-healthcheck` | `notiflex` | `*/5 * * * *`, ops-pool, 수정 템플릿 수동 Job HTTP 200; 이전 실패 Job이 `Forbid`로 예약 실행을 막아 정리 대기 |
 | Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
 | StatefulSet `valkey-primary` | `notiflex` | standalone, 1/1 Ready, Secret `valkey` 참조, `notiflex:id` 공유 |
 | ServiceAccount `notiflex-api` | `notiflex` | GSA `notiflex-sa`와 Workload Identity 연결, `valkey-password` accessor만 부여 |
@@ -130,6 +132,7 @@
 
 ## TODO
 
+- [ ] 수정 전 생성된 `notiflex-healthcheck-29769835`와 수동 검증 Job `notiflex-healthcheck-verify`를 승인 후 삭제하고, 다음 예약 Job의 `Complete`와 HTTP 200 로그를 확인한다.
 - [ ] `PodRestartTooMany`의 현재 임계값(5분 내 3회 이상)은 초기값이다. 운영 데이터를 충분히 수집한 뒤 정상 재시작 빈도와 오탐 여부를 검토하여 시간 범위, 횟수, `for` 지속 시간을 조정한다.
 - [ ] Slack·이메일 등 Alertmanager 외부 receiver를 연결하고, 서비스에 영향을 주지 않는 테스트 워크로드로 `PodRestartTooMany`의 Firing과 실제 메시지 수신을 검증한다.
 
