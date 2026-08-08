@@ -6,7 +6,7 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.5.0`, Canary, 역할별 노드풀, App of Apps, namespace 멀티테넌시, Kafka 비동기 메시징, Tempo 분산 트레이싱과 CronJob 헬스체크까지 실행·검증했다. SMB와 Enterprise API는 `notiflex`·`enterprise`에서 실행되고 RBAC·ResourceQuota는 분리되지만 Valkey와 credential은 공유한다. `root-app`은 하위 Application 11개를 Git에서 관리하며 모두 auto-sync/prune/selfHeal을 사용한다. sync wave는 0(namespace) → 1(backend/operator) → 2(메시징·트레이싱·수집기·설정·tenant API) 순서다. Helm 앱은 CLI가 아니라 `argocd/apps/`의 chart 선언과 `helm-values/`로 변경한다. 두 API는 `api-pool`, Kafka·Tempo는 `worker-pool`, 헬스체크 CronJob은 `ops-pool`에 배치된다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
+- 현재 단계: API `v0.5.0`, Canary, 역할별 노드풀, App of Apps, namespace 멀티테넌시, Kafka 비동기 메시징, Tempo 분산 트레이싱과 CronJob 헬스체크까지 실행·검증한 뒤 2026-08-08 비용 중단을 완료했다. 현재 GKE와 과금 가능한 Notiflex 인프라는 없고 Git 매니페스트가 복구 목표를 보존한다. 마지막 실행 구성에서 SMB·Enterprise의 RBAC·ResourceQuota는 분리됐지만 Valkey와 credential은 공유했고, root 포함 Application 12개가 Synced/Healthy였다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.

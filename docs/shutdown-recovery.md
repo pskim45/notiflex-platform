@@ -2,6 +2,8 @@
 
 이 문서는 비용을 중단하기 위해 Notiflex 실습 인프라를 삭제한 뒤 Git 저장소로 재구축하는 절차다. 인프라 구성은 복구되지만, 삭제된 Loki 과거 로그와 기존 외부 IP는 복구되지 않는다.
 
+> 현재 상태: 2026-08-08 GKE, VM, 모든 디스크, Gateway/LB·IP, Artifact Registry, Secret Manager, `notiflex-sa`와 proxy subnet 삭제 완료. 프로젝트 전수 조회에서 과금 가능한 Notiflex 자원이 남지 않았음을 확인했으며 GitHub Actions IAM/WIF와 Git 저장소만 보존했다.
+
 ## 종료 기준 상태
 
 - 프로젝트: `project-10edc337-9677-4dfc-91a`

@@ -1,6 +1,6 @@
 # Notiflex 현재 아키텍처
 
-> 스냅샷 기준: 2026-08-08, GKE 클러스터와 Git `main` 실측. 이 문서는 현재 구조를 빠르게 파악하기 위한 요약이며, 값의 선택 이유와 변경 이력은 [`docs/architecture-decisions.md`](../docs/architecture-decisions.md)를 따른다.
+> 스냅샷 기준: 2026-08-08 삭제 직전 GKE 클러스터와 Git `main` 실측. 현재 과금 가능한 인프라는 모두 삭제됐으며 이 문서는 마지막 실행 구조와 복구 목표를 요약한다. 재구축은 [`docs/shutdown-recovery.md`](../docs/shutdown-recovery.md), 값의 선택 이유는 [`docs/architecture-decisions.md`](../docs/architecture-decisions.md)를 따른다.
 
 ## 3층 지식 구조
 

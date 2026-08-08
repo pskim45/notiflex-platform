@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.5.0`가 GKE의 전용 `api-pool`에서 실행 중입니다. SMB와 Enterprise는 각각 `notiflex`·`enterprise` namespace의 독립 Canary Rollout으로 배포되며, RBAC와 ResourceQuota도 분리됩니다. 두 환경은 현재 Valkey와 Secret Manager credential을 공유하므로 배포·권한·자원은 분리되지만 데이터는 분리되지 않습니다. SMB API는 Kafka로 알림 이벤트를 비동기 전달하고 두 API는 Tempo로 Trace를 보냅니다. Argo CD App of Apps가 전체 구성을 Git에서 관리하며 root 포함 12개 Application은 `Synced/Healthy`입니다.
+2026-08-08 최종 실습 후 비용 중단을 위해 GKE, 디스크, Gateway/LB, Artifact Registry, Secret Manager와 워크로드 서비스 계정을 삭제했다. 현재 과금 가능한 Notiflex 인프라는 없으며 Git 저장소와 무료 IAM/WIF 복구 기반만 보존한다. 아래 내용과 매니페스트는 삭제 직전 검증한 API `v0.5.0` 아키텍처이자 복구 목표다. 재구축은 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)를 따른다.
 
 ## 기술 스택
 
