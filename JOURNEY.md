@@ -33,7 +33,7 @@
 | ch7 | 7.3 App of Apps | ✅ | 2026-08-08 | `root-app` 아래 bootstrap·API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 7개 하위 앱과 wave 0→1→2 순서를 구성하고 전체 Synced/Healthy 검증 |
 | ch7 | 7.4 멀티테넌시 | ✅ | 2026-08-08 | `enterprise` 전용 namespace·Canary Rollout·RBAC·ResourceQuota·CSI identity를 추가하고 App of Apps 동기화와 API/공유 Valkey 동작 검증 |
 | ch7 | 권한 분리 체험 | ✅ | 2026-08-08 | 로컬 `settings.local.json`으로 `kubectl delete/apply` 차단과 노드풀 삭제 승인 요청을 확인하고, 삭제 거부 후 설정·백업·Git 변경 없이 완전히 되돌림 |
-| ch8 | 8.1 메시징 | ⬜ | | |
+| ch8 | 8.1 메시징 | ✅ | 2026-08-08 | Strimzi `0.51.0`·Kafka `4.1.0` KRaft 단일 브로커와 `notifications` Topic을 GitOps로 설치하고 API Producer/Consumer·외부 `/id` 이벤트 수신 검증 |
 | ch8 | 8.2 트레이싱 | ⬜ | | |
 | ch8 | 8.3 CronJob | ⬜ | | |
 | ch9 | 9.1 저장소 분석 | ⬜ | | |
@@ -61,6 +61,7 @@
 | 노드 스케줄링 | GKE 역할별 노드풀 + nodeSelector | 단일 노드풀, taint/toleration, nodeAffinity | GKE 자동 노드풀 라벨로 API 배치를 단순하고 명시적으로 분리하고 이후 worker·ops 워크로드 확장 기반 마련 |
 | 다중 앱 관리 | Argo CD App of Apps + sync wave | 개별 수동 Application, ApplicationSet | 단일 클러스터의 7개 하위 앱을 Git으로 묶고 namespace→backend→수집기·설정·API 의존 순서를 명시 |
 | 멀티테넌시 (ch7.4) | Namespace 분리 + 고객별 Rollout·RBAC·ResourceQuota | 단일 namespace 라벨 격리, vCluster, 고객별 클러스터 | 학습 환경의 비용을 유지하면서 고객별 배포·권한·자원 한도를 분리한다. Valkey와 credential은 현재 공유하므로 데이터 격리는 아님 |
+| 이벤트 메시징 | Kafka + Strimzi Operator | RabbitMQ, NATS, Valkey Streams | KRaft 영속 메시징과 Consumer Group을 사용하고 Kafka CRD를 기존 App of Apps GitOps 흐름으로 관리 |
 
 ## 현재 검증 버전
 
@@ -69,7 +70,7 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
-| Notiflex 이미지 | `sha-059f3ab` | CI run `31249460858`에서 테스트·빌드·게시, API `v0.3.2` Canary 단계와 CSI 파일 credential 검증 |
+| Notiflex 이미지 | `sha-27fdb5e` | CI run `31255014874`에서 테스트·빌드·게시, API `v0.4.0` Canary 완료와 Kafka Producer/Consumer 검증 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
@@ -78,7 +79,7 @@
 | Argo Rollouts | `v1.9.1` | Canary 20%→50%→80%→100%, 단계별 30초 pause 검증 |
 | Valkey | chart `6.2.6`, app `9.1.1`, client `valkey-go v1.0.73` | standalone 1 Pod, `10m/64Mi` request, 인증 PING 및 `INCR` 검증 |
 | GKE Secret Manager CSI | GKE managed `secrets-store-gke.csi.k8s.io`, provider `gke` | Workload Identity pool과 모든 노드풀 `GKE_METADATA`, driver/provider 각 5/5 Ready |
-| Kafka | 미설치 | ch8 예정 |
+| Kafka | Strimzi chart/operator `0.51.0`, Kafka `4.1.0`, IBM/sarama `v1.47.0` | KRaft 단일 dual-role broker, metadata `4.1-IV1`, `notifications` 3 partitions |
 | OTel SDK | 미설치 | ch8 예정 |
 
 ## 현재 리소스 스냅샷
@@ -88,18 +89,19 @@
 | 노드풀 | 머신 타입 | 노드 수 | 주요 워크로드 |
 |--------|-----------|---------|---------------|
 | `default-pool` | `e2-medium` Spot VM | 2 | 관측성, Argo CD 및 컨트롤러 |
-| `api-pool` | `e2-medium` Spot VM | 1 | `notiflex-api` 1 replica |
-| `worker-pool` | `e2-standard-2` Spot VM | 1 | Valkey, 향후 worker/Kafka 배치 |
+| `api-pool` | `e2-medium` Spot VM | 1 | SMB·Enterprise `notiflex-api` 각 1 replica |
+| `worker-pool` | `e2-standard-2` Spot VM | 1 | Valkey, Strimzi operator, Kafka broker·Topic Operator |
 | `ops-pool` | `e2-small` Spot VM | 1 | 운영/CronJob 배치 준비, 현재 시스템 DaemonSet만 실행 |
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Rollout `notiflex-api` | `notiflex` | Canary, `sha-059f3ab`, step 6/6, Healthy, 1/1 Ready, `api-pool` nodeSelector와 CSI 파일 credential 사용 |
+| Rollout `notiflex-api` | `notiflex` | Canary, `sha-27fdb5e`, step 6/6, Healthy, 1/1 Ready, API `v0.4.0`, Kafka broker 환경변수와 CSI credential 사용 |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Canary ReplicaSet용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
-| Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 8개 자동 등록, 전체 9개 Application Synced/Healthy |
-| Application `bootstrap` | `argocd` | wave 0에서 `notiflex`·`enterprise`·`monitoring` namespace 관리, Synced/Healthy |
+| Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 10개 자동 등록, 전체 11개 Application Synced/Healthy |
+| Application `bootstrap` | `argocd` | wave 0에서 `notiflex`·`enterprise`·`monitoring`·`kafka` namespace 관리, Synced/Healthy |
+| Application `strimzi`·`kafka` | `argocd` | wave 1 operator → wave 2 cluster/topic 순서, 모두 Synced/Healthy |
 | Application `valkey`·`kube-prometheus`·`loki`·`fluent-bit` | `argocd` | 외부 Helm chart + Git values 다중 source, 모두 Synced/Healthy |
 | Application `monitoring-config` | `argocd` | `monitoring/`과 `k8s/monitoring/` 일반 YAML 관리, Synced/Healthy |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 28/28 Up |
@@ -118,6 +120,8 @@
 | Rollout `notiflex-api` | `enterprise` | 고객 전용 Canary, 1/1 Ready, `api-pool` 배치, 내부 ClusterIP Service만 사용 |
 | RBAC·ResourceQuota | `enterprise` | `tenant-reader`는 조회만 허용, Pod 10·Service 5 및 CPU/메모리 상한 적용 |
 | SecretProviderClass `notiflex-secrets` | `enterprise` | 동일 GSA와 Secret Manager credential을 CSI 파일로 mount, mounted=true |
+| Kafka `notiflex-kafka` | `kafka` | KRaft dual-role 1 broker, Kafka 4.1.0, PVC 5Gi, `worker-pool`, Ready=True |
+| KafkaTopic `notifications` | `kafka` | 3 partitions, replication factor 1, Ready=True |
 
 ## TODO
 
@@ -152,3 +156,4 @@
 | ch6.3 | replica 1과 stable Service 기반 HTTPRoute에서는 setWeight 20/50/80이 실제 Gateway 요청 비율을 정밀 분할하지 못함 | Canary 단계·pause·stable/canary Service 전환을 검증하고, 실제 가중 트래픽은 ch7 replica 확장과 Gateway traffic routing 연동 과제로 기록 |
 | ch7.3 | namespace 리소스를 `notiflex-smb`에서 wave 0 `bootstrap`으로 한 번에 이동하자 기존 앱 prune가 `notiflex` namespace를 삭제 | bootstrap이 namespace를 재생성하고 Secret Manager의 기존 credential로 Valkey Secret 복구, Valkey·API·Gateway 재동기화. 기존 Valkey PVC와 `notiflex:id` 데이터는 손실되어 새 PVC에서 ID 1부터 재시작했으며, 이후 namespace는 bootstrap 단독 소유와 `Prune=false`로 보호 |
 | ch7.4 | Enterprise API 최초 기동 시 Workload Identity IAM 전파 동안 약 2분 Pending | IAM 전파 후 자동 Running 전환과 CSI mount를 확인. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 tenant가 같은 Valkey 키를 공유함을 명시 |
+| ch8.1 | 로컬 Go 미설치와 첫 임시 Go ZIP 압축 해제 중 timeout으로 표준 라이브러리 일부 누락 | 공식 Go 1.25.10 ZIP의 SHA-256을 검증하고 새 임시 디렉터리에 완전히 해제한 뒤 `gofmt`·`go mod tidy`·`go test ./...` 성공 |
