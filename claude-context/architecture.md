@@ -91,7 +91,7 @@ Canary 시 별도 ReplicaSet
 
 - GitHub Actions 권한은 `id-token: write`, `contents: write`이다. 장기 GCP 키 대신 OIDC를 사용하며 repository secrets에는 provider·service account·project 식별자만 둔다.
 - Artifact Registry 경로는 `asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<TAG>`이다.
-- Argo CD Application은 `main/k8s/smb`를 `notiflex` namespace로 배포한다. 현재 revision `ba95afb`, 상태는 Synced/Healthy이다.
+- Argo CD Application은 `main/k8s/smb`를 `notiflex` namespace로 배포하고 `main`의 최신 커밋을 추적한다. 2026-08-08 실측 상태는 Synced/Healthy이다.
 - 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `8574b6b4c8`이다.
 
 ## 관측 가능성

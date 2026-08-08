@@ -34,7 +34,8 @@ notiflex-platform/
 ├── helm-values/          # 관측성 Helm chart 경량 설정
 ├── monitoring/           # Grafana 대시보드와 데이터소스
 ├── docs/
-│   └── architecture-decisions.md # 시간순 아키텍처 결정 기록
+│   ├── architecture-decisions.md # 시간순 아키텍처 결정 기록
+│   └── shutdown-recovery.md      # 비용 중단 후 환경 복구 런북
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
