@@ -111,3 +111,25 @@
 - `v0.3.2` 배포에서 step 1·3·5의 pause와 step 6 승격을 실제 확인했다.
 - Blue/Green의 0%→100% 일괄 전환보다 문제를 발견하고 중단할 관찰 구간이 명시적이다.
 - 현재 replica 1과 stable Service 기반 HTTPRoute에서는 정밀한 Gateway 트래픽 비율이 아니므로, 실제 가중 라우팅은 노드풀·replica 확장 후 별도로 도입한다.
+
+## ADR-011: 워크로드 배치는 역할별 GKE 노드풀과 nodeSelector (7장)
+
+**시점**: 2026-08 / **결정**: `default-pool` 외에 `api-pool`·`worker-pool`·`ops-pool`을 만들고 GKE 자동 노드풀 라벨을 사용하는 nodeSelector로 API를 분리한다. 현재는 taint/toleration과 복잡한 nodeAffinity를 도입하지 않는다.
+
+**이유**:
+
+- API를 `api-pool`에만 배치해 Valkey·관측성·향후 Kafka의 리소스 경합과 분리한다.
+- `cloud.google.com/gke-nodepool` 자동 라벨은 별도 커스텀 라벨 없이 선언이 단순하다.
+- 모든 새 풀에 `GKE_METADATA`를 설정해 Workload Identity와 Secret Manager CSI 접근을 유지한다.
+- worker·ops 풀을 미리 분리해 이후 Kafka와 CronJob의 배치 위치를 명확히 한다.
+
+## ADR-012: 여러 앱은 Argo CD App of Apps로 관리 (7장)
+
+**시점**: 2026-08 / **결정**: `root-app`이 `argocd/apps/`를 감시하고 API, Valkey, Prometheus, Loki, Fluent Bit, 모니터링 설정 Application을 등록한다. 단일 클러스터에서는 ApplicationSet 대신 App of Apps를 사용한다.
+
+**이유**:
+
+- 일반 Kubernetes YAML과 외부 Helm chart를 모두 Git push와 Argo CD 자동 동기화라는 동일한 운영 흐름으로 관리한다.
+- 기존 chart 버전과 `helm-values/`를 다중 source Application에 명시해 수동 `helm upgrade` 의존성을 제거한다.
+- 앱 6개 규모에서는 Application별 순수 YAML이 템플릿 generator보다 읽고 문제를 추적하기 쉽다.
+- 기존 Valkey·Grafana credential Secret과 PVC를 유지하면서 Helm CLI 설치 리소스를 안전하게 인수할 수 있다.

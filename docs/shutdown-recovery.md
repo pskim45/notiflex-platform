@@ -126,10 +126,10 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply `
 kubectl --context gke-sysnet4admin_book_gitaiops wait `
   --for=condition=Available deployment/argocd-server `
   -n argocd --timeout=180s
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f argocd/notiflex-smb.yaml
 ```
 
 저장소가 private으로 바뀌었다면 Argo CD 저장소 자격 증명을 클러스터에 직접 등록한다. 토큰을 YAML이나 Git에 저장하지 않는다.
+`root-app`은 Valkey와 Grafana의 기존 Secret을 참조하므로 아직 적용하지 않고 7단계에서 bootstrap credential을 만든 뒤 적용한다.
 
 ## 5. Gateway 선행 조건 복구
 
@@ -154,47 +154,17 @@ gcloud compute networks subnets create proxy-only-subnet `
   --range 172.16.0.0/23
 ```
 
-Argo CD가 `k8s/smb/`를 동기화하면 Gateway, HTTPRoute, HealthCheckPolicy와 Notiflex Rollout이 자동 생성된다.
+Argo CD App of Apps가 `notiflex-smb`를 동기화하면 Gateway, HTTPRoute, HealthCheckPolicy와 Notiflex Rollout이 자동 생성된다.
 
 ## 6. 관측성 복구
 
-```powershell
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add grafana https://grafana.github.io/helm-charts
-helm repo add fluent https://fluent.github.io/helm-charts
-helm repo update
-
-helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack `
-  --version 88.1.3 --namespace monitoring --create-namespace `
-  --values helm-values/kube-prometheus.yaml
-helm upgrade --install loki grafana/loki `
-  --version 7.2.0 --namespace monitoring `
-  --values helm-values/loki.yaml
-helm upgrade --install fluent-bit fluent/fluent-bit `
-  --version 0.57.9 --namespace monitoring `
-  --values helm-values/fluent-bit.yaml
-
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f monitoring/notiflex-dashboard.yaml
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f monitoring/loki-datasource.yaml
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/monitoring/pod-restart-alert.yaml
-```
+관측성 구성은 별도 Helm CLI 명령으로 설치하지 않는다. 7단계에서 `root-app`을 적용하면 `kube-prometheus`·`loki`·`fluent-bit` Application과 `monitoring-config` Application이 chart와 추가 YAML을 자동 동기화한다.
 
 새 Loki PVC와 빈 데이터 디스크가 만들어진다. 과거 로그는 돌아오지 않는다.
 
 ## 7. Valkey와 Secret Manager 복구
 
-Valkey를 먼저 설치해 새 Kubernetes Secret과 비밀번호를 생성한다.
-
-```powershell
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm upgrade --install valkey bitnami/valkey `
-  --version 6.2.6 `
-  --namespace notiflex `
-  --values helm-values/valkey.yaml `
-  --wait --timeout 10m
-```
-
-Secret Manager API와 `notiflex-sa`를 복구한다. 비밀번호 값은 콘솔에 출력하거나 Git에 저장하지 않는다.
+Argo CD가 참조할 Valkey와 Grafana bootstrap Secret을 먼저 만들고 Secret Manager API와 `notiflex-sa`를 복구한다. 비밀번호 값은 콘솔에 출력하거나 Git에 저장하지 않는다.
 
 ```powershell
 $projectId = "project-10edc337-9677-4dfc-91a"
@@ -208,18 +178,32 @@ gcloud secrets create valkey-password `
   --project=$projectId `
   --replication-policy=automatic
 
-$secret = kubectl --context gke-sysnet4admin_book_gitaiops `
-  get secret valkey -n notiflex -o json | ConvertFrom-Json
-$bytes = [Convert]::FromBase64String($secret.data.'valkey-password')
-$tempFile = New-TemporaryFile
+$valkeyBytes = New-Object byte[] 32
+$grafanaBytes = New-Object byte[] 32
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($valkeyBytes)
+$rng.GetBytes($grafanaBytes)
+$valkeyPassword = [Convert]::ToBase64String($valkeyBytes)
+$grafanaPassword = [Convert]::ToBase64String($grafanaBytes)
+$valkeyFile = New-TemporaryFile
+$grafanaFile = New-TemporaryFile
 try {
-  [IO.File]::WriteAllBytes($tempFile.FullName, $bytes)
+  [IO.File]::WriteAllText($valkeyFile.FullName, $valkeyPassword)
+  [IO.File]::WriteAllText($grafanaFile.FullName, $grafanaPassword)
+  kubectl --context gke-sysnet4admin_book_gitaiops create namespace notiflex
+  kubectl --context gke-sysnet4admin_book_gitaiops create namespace monitoring
+  kubectl --context gke-sysnet4admin_book_gitaiops create secret generic valkey `
+    -n notiflex --from-file="valkey-password=$($valkeyFile.FullName)"
+  kubectl --context gke-sysnet4admin_book_gitaiops create secret generic kube-prometheus-grafana `
+    -n monitoring --from-literal="admin-user=admin" `
+    --from-file="admin-password=$($grafanaFile.FullName)"
   gcloud secrets versions add valkey-password `
     --project=$projectId `
-    --data-file=$tempFile.FullName
+    --data-file=$valkeyFile.FullName
 } finally {
-  Remove-Item -LiteralPath $tempFile.FullName -Force
-  Remove-Variable bytes
+  $rng.Dispose()
+  Remove-Item -LiteralPath $valkeyFile.FullName,$grafanaFile.FullName -Force
+  Remove-Variable valkeyBytes,grafanaBytes,valkeyPassword,grafanaPassword
 }
 
 gcloud secrets add-iam-policy-binding valkey-password `
@@ -232,12 +216,11 @@ gcloud iam service-accounts add-iam-policy-binding $gsa `
   --role=roles/iam.workloadIdentityUser
 ```
 
-IAM 전파 후 Argo CD를 hard refresh하면 `ServiceAccount`와 `SecretProviderClass`가 적용되고 Notiflex Pod에 Secret Manager version이 마운트된다.
+IAM 전파 후 `root-app` 하나를 적용한다. root가 API와 네 Helm 앱, 모니터링 설정을 모두 등록한다.
 
 ```powershell
-kubectl --context gke-sysnet4admin_book_gitaiops annotate `
-  application notiflex-smb -n argocd `
-  argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context gke-sysnet4admin_book_gitaiops apply -f argocd/root-app.yaml
+kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 kubectl --context gke-sysnet4admin_book_gitaiops get `
   secretproviderclass,secretproviderclasspodstatus -n notiflex
 ```

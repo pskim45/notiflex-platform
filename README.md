@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo Rollouts Canary는 새 이미지 `sha-059f3ab` 배포에서 20%→50%→80%→100% 단계와 각 30초 pause를 완료했으며 Argo CD는 `Synced/Healthy`입니다.
+Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo CD App of Apps가 API와 Valkey·Prometheus·Loki·Fluent Bit을 모두 Git에서 관리하며 7개 Application은 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
@@ -27,7 +27,8 @@ notiflex-platform/
 ├── claude-context/
 │   └── architecture.md   # 현재 컴포넌트·연결·설정 아키텍처 스냅샷
 ├── argocd/
-│   └── notiflex-smb.yaml # Argo CD Application 선언
+│   ├── root-app.yaml     # 모든 하위 Application의 GitOps 진입점
+│   └── apps/             # API와 Helm chart별 Application 선언
 ├── k8s/
 │   ├── monitoring/       # PrometheusRule 등 관측성 매니페스트
 │   └── smb/              # 애플리케이션 Kubernetes 매니페스트
@@ -95,38 +96,29 @@ gcloud builds submit app/ \
 
 `main` 브랜치에서 `app/**`가 변경되면 `.github/workflows/ci.yaml`이 자동으로 테스트·빌드·푸시를 수행합니다. GCP 인증은 장기 서비스 계정 키 대신 Workload Identity Federation을 사용하고, 이미지는 `sha-<커밋 앞 7자리>` 태그로 게시합니다. 빌드 성공 후 워크플로가 `k8s/smb/rollout.yaml`의 이미지 태그를 커밋하면 Argo CD가 변경을 감지해 자동 배포합니다. CI는 클러스터에 직접 접근하지 않습니다.
 
-애플리케이션 매니페스트는 Argo CD가 `main` 브랜치의 `k8s/smb` 디렉터리에서 자동 동기화합니다. 초기 구성이나 수동 검증이 필요할 때는 다음 명령을 사용할 수 있습니다.
+최초 구성에서는 `root-app` 하나만 적용합니다. 이후 root가 `argocd/apps/`의 하위 Application을 등록하고, 각 앱이 일반 YAML 또는 외부 Helm chart와 Git의 values를 자동 동기화합니다.
 
 ```bash
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/smb/namespace.yaml
-kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/smb/
-kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
+kubectl --context gke-sysnet4admin_book_gitaiops apply -f argocd/root-app.yaml
+kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 ```
 
 GitOps 동기화 상태는 다음과 같이 확인합니다.
 
 ```bash
-kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-smb -n argocd
+kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 ```
 
 ## 중앙 로그 수집
 
-Loki chart `7.2.0`(Loki `3.6.11`)과 Fluent Bit chart `0.57.9`(Fluent Bit `5.0.9`)를 `monitoring` 네임스페이스에 설치합니다. Loki는 5Gi 영구 볼륨을 사용하는 SingleBinary 구성이고, Fluent Bit은 각 노드에서 새 컨테이너 stdout/stderr 로그를 수집합니다.
+Loki chart `7.2.0`(Loki `3.6.11`)과 Fluent Bit chart `0.57.9`(Fluent Bit `5.0.9`)는 각각 Argo CD Application으로 `monitoring` 네임스페이스에 설치됩니다. Loki는 5Gi 영구 볼륨을 사용하는 SingleBinary 구성이고, Fluent Bit은 각 노드에서 새 컨테이너 stdout/stderr 로그를 수집합니다.
 
 ```bash
-helm upgrade --install loki grafana/loki \
-  --version 7.2.0 \
-  --namespace monitoring \
-  --values helm-values/loki.yaml
-
-helm upgrade --install fluent-bit fluent/fluent-bit \
-  --version 0.57.9 \
-  --namespace monitoring \
-  --values helm-values/fluent-bit.yaml
-
-kubectl --context gke-sysnet4admin_book_gitaiops apply \
-  -f monitoring/loki-datasource.yaml
+kubectl --context gke-sysnet4admin_book_gitaiops get application \
+  loki fluent-bit monitoring-config -n argocd
 ```
+
+일상 변경에서는 `helm upgrade`를 직접 실행하지 않는다. `argocd/apps/*.yaml`의 chart 버전이나 `helm-values/*.yaml`을 수정해 push하면 Argo CD가 적용한다.
 
 Grafana의 **Explore**에서 데이터소스로 `Loki`를 선택한 뒤 `{namespace="monitoring"}` 또는 `{namespace="notiflex"}` LogQL 쿼리를 실행합니다. Fluent Bit 설치 이후 새로 출력된 로그부터 조회됩니다.
 
@@ -162,16 +154,11 @@ curl http://35.216.70.162/version
 
 ## 메트릭 모니터링
 
-Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter는 `kube-prometheus-stack` chart `88.1.3`으로 `monitoring` 네임스페이스에 설치됩니다. 재현 가능한 설정은 `helm-values/kube-prometheus.yaml`에 있습니다.
+Prometheus, Grafana, Alertmanager, kube-state-metrics, node-exporter는 Argo CD의 `kube-prometheus` Application이 chart `88.1.3`으로 `monitoring` 네임스페이스에 설치합니다. 재현 가능한 설정은 `helm-values/kube-prometheus.yaml`에 있습니다.
 
 ```bash
-helm upgrade --install kube-prometheus prometheus-community/kube-prometheus-stack \
-  --version 88.1.3 \
-  --namespace monitoring --create-namespace \
-  --values helm-values/kube-prometheus.yaml
-
-kubectl --context gke-sysnet4admin_book_gitaiops apply \
-  -f monitoring/notiflex-dashboard.yaml
+kubectl --context gke-sysnet4admin_book_gitaiops get application \
+  kube-prometheus monitoring-config -n argocd
 ```
 
 Grafana 접속용 포트 포워딩:

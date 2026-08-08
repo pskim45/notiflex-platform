@@ -30,7 +30,7 @@
 | ch6 | 6.3 Canary 전환 | ✅ | 2026-08-08 | Argo Rollouts Canary 전환, `v0.3.2`에서 20%·50%·80% 각 30초 pause와 100% 승격 검증 |
 | ch6 | 6.4 아키텍처 컨텍스트 | ✅ | 2026-08-08 | `claude-context/architecture.md`에 현재 컴포넌트·연결 관계·핵심 설정·namespace·배포 및 관측성 경로를 클러스터 실측 기준으로 기록 |
 | ch7 | 7.2 멀티 노드풀 | ✅ | 2026-08-08 | `api-pool`·`worker-pool`·`ops-pool` 생성, API nodeSelector 적용과 Canary 재배포 후 전용 노드 배치·CSI credential·외부 API 검증 |
-| ch7 | 7.3 App of Apps | ⬜ | | |
+| ch7 | 7.3 App of Apps | ✅ | 2026-08-08 | `root-app` 아래 API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 6개 하위 앱을 GitOps화하고 전체 Synced/Healthy 검증 |
 | ch7 | 7.4 멀티테넌시 | ⬜ | | |
 | ch8 | 8.1 메시징 | ⬜ | | |
 | ch8 | 8.2 트레이싱 | ⬜ | | |
@@ -58,6 +58,7 @@
 | 시크릿 관리 | GKE Secret Manager CSI + Workload Identity | Kubernetes Secret 직접 주입, Sealed Secrets, External Secrets Operator | 장기 SA 키 없이 Secret Manager 값을 읽기 전용 파일로 전달하고 IAM 최소 권한 적용 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 | 노드 스케줄링 | GKE 역할별 노드풀 + nodeSelector | 단일 노드풀, taint/toleration, nodeAffinity | GKE 자동 노드풀 라벨로 API 배치를 단순하고 명시적으로 분리하고 이후 worker·ops 워크로드 확장 기반 마련 |
+| 다중 앱 관리 | Argo CD App of Apps | 개별 수동 Application, ApplicationSet | 단일 클러스터의 6개 앱을 순수 YAML과 Git 디렉터리로 묶고 Helm chart까지 동일한 GitOps 흐름으로 관리 |
 
 ## 현재 검증 버전
 
@@ -95,6 +96,9 @@
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Canary ReplicaSet용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
+| Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 6개 자동 등록, Synced/Healthy |
+| Application `valkey`·`kube-prometheus`·`loki`·`fluent-bit` | `argocd` | 외부 Helm chart + Git values 다중 source, 모두 Synced/Healthy |
+| Application `monitoring-config` | `argocd` | `monitoring/`과 `k8s/monitoring/` 일반 YAML 관리, Synced/Healthy |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 28/28 Up |
 | ConfigMap `notiflex-dashboard` | `monitoring` | Grafana sidecar 로딩 완료, CPU·메모리·재시작 패널 구성 |
 | StatefulSet `loki`·Deployment `loki-gateway` | `monitoring` | Running, PVC 5Gi Bound, LogQL 조회 성공 |

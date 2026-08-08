@@ -84,15 +84,18 @@ Canary 시 별도 ReplicaSet
      → Docker build
      → Artifact Registry notiflex/api:sha-<7자리 커밋>
      → k8s/smb/rollout.yaml 이미지 태그 자동 커밋
-  → Argo CD Application notiflex-smb
-     → main의 k8s/smb 감시, auto-sync + prune + selfHeal
+  → Argo CD root-app
+     → argocd/apps의 하위 Application 6개 등록
+     → notiflex-smb는 k8s/smb, Helm 앱은 외부 chart + helm-values 감시
+     → 모든 앱 auto-sync + prune + selfHeal
   → Argo Rollouts controller
      → Canary 단계 실행 및 stable/canary Service selector 전환
 ```
 
 - GitHub Actions 권한은 `id-token: write`, `contents: write`이다. 장기 GCP 키 대신 OIDC를 사용하며 repository secrets에는 provider·service account·project 식별자만 둔다.
 - Artifact Registry 경로는 `asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<TAG>`이다.
-- Argo CD Application은 `main/k8s/smb`를 `notiflex` namespace로 배포하고 `main`의 최신 커밋을 추적한다. 2026-08-08 실측 상태는 Synced/Healthy이다.
+- `root-app`은 `argocd/apps/`를 감시하고 `notiflex-smb`, `valkey`, `kube-prometheus`, `loki`, `fluent-bit`, `monitoring-config`를 등록한다. 2026-08-08 실측 결과 root와 하위 앱 6개가 모두 Synced/Healthy이다.
+- Helm 앱은 외부 chart의 고정 버전과 이 저장소의 `helm-values/`를 다중 source로 결합한다. 기존 Valkey·Grafana credential Secret을 명시적으로 재사용하며 일상 운영에서 Helm CLI를 실행하지 않는다.
 - 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `7f56884766`이다.
 
 ## 관측 가능성
@@ -114,7 +117,7 @@ Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready�
 | Namespace | 주요 컴포넌트 |
 |---|---|
 | `notiflex` | API Rollout/Pod, stable·preview Service, Gateway, HTTPRoute, HealthCheckPolicy, Valkey StatefulSet, ServiceAccount, SecretProviderClass |
-| `argocd` | Application controller, API server, repo server, ApplicationSet, Dex, Redis; `notiflex-smb` Synced/Healthy |
+| `argocd` | Application controller, API server, repo server, Dex, Redis; `root-app`과 하위 Application 6개 모두 Synced/Healthy |
 | `argo-rollouts` | Argo Rollouts controller `v1.9.1` 1/1 Ready |
 | `monitoring` | Prometheus, Grafana, Alertmanager, Loki, Fluent Bit, kube-state-metrics, node-exporter, PrometheusRule |
 | `kube-system` | GKE DNS/네트워크/메트릭 구성과 Secret Manager CSI driver/provider·metadata server 각 5/5 Ready |
