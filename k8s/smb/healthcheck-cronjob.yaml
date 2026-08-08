@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: notiflex-healthcheck
+  namespace: notiflex
+  labels:
+    app.kubernetes.io/name: notiflex-healthcheck
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: notiflex-healthcheck
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            cloud.google.com/gke-nodepool: ops-pool
+          containers:
+            - name: healthcheck
+              image: curlimages/curl:8.17.0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+              args:
+                - |
+                  response="$(curl --fail --silent --show-error --max-time 5 http://notiflex-api.notiflex.svc.cluster.local/health)"
+                  echo "Health check passed (HTTP 200)"
+                  echo "Response: ${response}"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 50m
+                  memory: 32Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault

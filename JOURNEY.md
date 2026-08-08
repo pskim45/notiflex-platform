@@ -35,7 +35,7 @@
 | ch7 | 권한 분리 체험 | ✅ | 2026-08-08 | 로컬 `settings.local.json`으로 `kubectl delete/apply` 차단과 노드풀 삭제 승인 요청을 확인하고, 삭제 거부 후 설정·백업·Git 변경 없이 완전히 되돌림 |
 | ch8 | 8.1 메시징 | ✅ | 2026-08-08 | Strimzi `0.51.0`·Kafka `4.1.0` KRaft 단일 브로커와 `notifications` Topic을 GitOps로 설치하고 API Producer/Consumer·외부 `/id` 이벤트 수신 검증 |
 | ch8 | 8.2 트레이싱 | ✅ | 2026-08-08 | Tempo SingleBinary와 Grafana 데이터소스, OTel SDK를 GitOps로 설치하고 실제 Trace에서 HTTP→Valkey→Kafka produce→consume Span 연결 검증 |
-| ch8 | 8.3 CronJob | ⬜ | | |
+| ch8 | 8.3 CronJob | ✅ | 2026-08-08 | `notiflex-healthcheck`가 5분마다 내부 API `/health`를 점검하도록 선언하고 ops-pool 배치·성공 Job 로그 검증 |
 | ch9 | 9.1 저장소 분석 | ⬜ | | |
 | ch9 | 9.2 회고 | ⬜ | | |
 | ch9 | 9.3 온보딩 문서 | ⬜ | | |
@@ -63,6 +63,7 @@
 | 멀티테넌시 (ch7.4) | Namespace 분리 + 고객별 Rollout·RBAC·ResourceQuota | 단일 namespace 라벨 격리, vCluster, 고객별 클러스터 | 학습 환경의 비용을 유지하면서 고객별 배포·권한·자원 한도를 분리한다. Valkey와 credential은 현재 공유하므로 데이터 격리는 아님 |
 | 이벤트 메시징 | Kafka + Strimzi Operator | RabbitMQ, NATS, Valkey Streams | KRaft 영속 메시징과 Consumer Group을 사용하고 Kafka CRD를 기존 App of Apps GitOps 흐름으로 관리 |
 | 분산 트레이싱 | Grafana Tempo + OpenTelemetry | Jaeger, Zipkin | 기존 Grafana에 메트릭·로그·Trace를 통합하고 OTLP 표준으로 HTTP·Valkey·Kafka 구간을 연결 |
+| 배치 자동화 (ch8.3) | K8s CronJob | 외부 cron + Kubernetes 외부 트리거, Argo Workflows | Kubernetes 네이티브 스케줄링, ops-pool 배치, Argo CD 매니페스트 관리로 단순 헬스체크를 자동화 |
 
 ## 현재 검증 버전
 
