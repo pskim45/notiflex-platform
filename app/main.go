@@ -14,7 +14,7 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-const version = "v0.3.0"
+const version = "v0.3.1"
 
 const idKey = "notiflex:id"
 
@@ -52,7 +52,12 @@ func main() {
 		podName = "unknown"
 	}
 
-	ids, err := newValkeyIDStore(os.Getenv("VALKEY_ADDR"), os.Getenv("VALKEY_PASSWORD"))
+	password, err := valkeyPassword()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ids, err := newValkeyIDStore(os.Getenv("VALKEY_ADDR"), password)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,6 +73,25 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func valkeyPassword() (string, error) {
+	if path := os.Getenv("VALKEY_PASSWORD_FILE"); path != "" {
+		password, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("Valkey 비밀번호 파일 읽기 실패: %w", err)
+		}
+		if len(password) == 0 {
+			return "", fmt.Errorf("Valkey 비밀번호 파일이 비어 있음")
+		}
+		return string(password), nil
+	}
+
+	password := os.Getenv("VALKEY_PASSWORD")
+	if password == "" {
+		return "", fmt.Errorf("VALKEY_PASSWORD_FILE 또는 VALKEY_PASSWORD가 필요함")
+	}
+	return password, nil
 }
 
 func newValkeyIDStore(addr, password string) (*valkeyIDStore, error) {

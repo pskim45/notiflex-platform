@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -95,6 +97,36 @@ func TestNextIDStoreFailure(t *testing.T) {
 
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestValkeyPasswordFromFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "valkey-password")
+	if err := os.WriteFile(path, []byte("file-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VALKEY_PASSWORD_FILE", path)
+	t.Setenv("VALKEY_PASSWORD", "environment-secret")
+
+	password, err := valkeyPassword()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if password != "file-secret" {
+		t.Fatalf("password = %q, want file-secret", password)
+	}
+}
+
+func TestValkeyPasswordEnvironmentFallback(t *testing.T) {
+	t.Setenv("VALKEY_PASSWORD_FILE", "")
+	t.Setenv("VALKEY_PASSWORD", "environment-secret")
+
+	password, err := valkeyPassword()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if password != "environment-secret" {
+		t.Fatalf("password = %q, want environment-secret", password)
 	}
 }
 
