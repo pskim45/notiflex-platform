@@ -7,7 +7,7 @@
 - 프로젝트: `project-10edc337-9677-4dfc-91a`
 - 리전/존: `asia-northeast3` / `asia-northeast3-a`
 - 클러스터: GKE Standard `notiflex-cluster`
-- 노드풀: `default-pool`, Spot `e2-medium` 2대, 부팅 디스크 30GiB
+- 노드풀: `default-pool` Spot `e2-medium` 2대와 역할별 `api-pool`·`worker-pool`·`ops-pool` 각 1대
 - 애플리케이션: `v0.3.2`, 이미지 태그 `sha-059f3ab`
 - 배포: Argo CD + Argo Rollouts Canary
 - 외부 진입점: GKE 리전 외부 Gateway API
@@ -77,6 +77,30 @@ gcloud container node-pools update default-pool `
   --zone asia-northeast3-a `
   --workload-metadata GKE_METADATA
 ```
+
+역할별 노드풀을 생성한다. 모든 풀에 Workload Identity metadata를 설정해야 API의 Secret Manager CSI 마운트가 동작한다.
+
+```powershell
+gcloud container node-pools create api-pool `
+  --cluster notiflex-cluster --project project-10edc337-9677-4dfc-91a `
+  --zone asia-northeast3-a --machine-type e2-medium `
+  --disk-type pd-standard --disk-size 50 --num-nodes 1 --spot `
+  --workload-metadata GKE_METADATA
+
+gcloud container node-pools create worker-pool `
+  --cluster notiflex-cluster --project project-10edc337-9677-4dfc-91a `
+  --zone asia-northeast3-a --machine-type e2-standard-2 `
+  --disk-type pd-standard --disk-size 50 --num-nodes 1 --spot `
+  --workload-metadata GKE_METADATA
+
+gcloud container node-pools create ops-pool `
+  --cluster notiflex-cluster --project project-10edc337-9677-4dfc-91a `
+  --zone asia-northeast3-a --machine-type e2-small `
+  --disk-type pd-standard --disk-size 50 --num-nodes 1 --spot `
+  --workload-metadata GKE_METADATA
+```
+
+각 생성 명령 전에는 `gcloud container operations list --zone asia-northeast3-a --filter="status=RUNNING"` 출력이 없는지 확인한다. 노드풀 생성은 동시에 실행하지 않는다.
 
 ## 3. Argo Rollouts 설치
 

@@ -29,7 +29,7 @@
 | ch6 | 6.2 시크릿 관리 | ✅ | 2026-08-08 | GCP Secret Manager·Workload Identity·GKE managed CSI로 Valkey credential 파일 마운트 및 외부 API 검증 |
 | ch6 | 6.3 Canary 전환 | ✅ | 2026-08-08 | Argo Rollouts Canary 전환, `v0.3.2`에서 20%·50%·80% 각 30초 pause와 100% 승격 검증 |
 | ch6 | 6.4 아키텍처 컨텍스트 | ✅ | 2026-08-08 | `claude-context/architecture.md`에 현재 컴포넌트·연결 관계·핵심 설정·namespace·배포 및 관측성 경로를 클러스터 실측 기준으로 기록 |
-| ch7 | 7.2 멀티 노드풀 | ⬜ | | |
+| ch7 | 7.2 멀티 노드풀 | ✅ | 2026-08-08 | `api-pool`·`worker-pool`·`ops-pool` 생성, API nodeSelector 적용과 Canary 재배포 후 전용 노드 배치·CSI credential·외부 API 검증 |
 | ch7 | 7.3 App of Apps | ⬜ | | |
 | ch7 | 7.4 멀티테넌시 | ⬜ | | |
 | ch8 | 8.1 메시징 | ⬜ | | |
@@ -57,6 +57,7 @@
 | 캐시·상태 공유 | Valkey | Redis, Memcached, DragonflyDB | Redis 호환 `INCR`로 Pod 간 ID를 원자적으로 공유하고 BSD 라이선스를 유지 |
 | 시크릿 관리 | GKE Secret Manager CSI + Workload Identity | Kubernetes Secret 직접 주입, Sealed Secrets, External Secrets Operator | 장기 SA 키 없이 Secret Manager 값을 읽기 전용 파일로 전달하고 IAM 최소 권한 적용 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
+| 노드 스케줄링 | GKE 역할별 노드풀 + nodeSelector | 단일 노드풀, taint/toleration, nodeAffinity | GKE 자동 노드풀 라벨로 API 배치를 단순하고 명시적으로 분리하고 이후 worker·ops 워크로드 확장 기반 마련 |
 
 ## 현재 검증 버전
 
@@ -73,7 +74,7 @@
 | Fluent Bit | chart `0.57.9` | Fluent Bit `5.0.9`, 노드별 DaemonSet |
 | Argo Rollouts | `v1.9.1` | Canary 20%→50%→80%→100%, 단계별 30초 pause 검증 |
 | Valkey | chart `6.2.6`, app `9.1.1`, client `valkey-go v1.0.73` | standalone 1 Pod, `10m/64Mi` request, 인증 PING 및 `INCR` 검증 |
-| GKE Secret Manager CSI | GKE managed `secrets-store-gke.csi.k8s.io`, provider `gke` | Workload Identity pool과 default-pool `GKE_METADATA`, driver/provider 각 2/2 Ready |
+| GKE Secret Manager CSI | GKE managed `secrets-store-gke.csi.k8s.io`, provider `gke` | Workload Identity pool과 모든 노드풀 `GKE_METADATA`, driver/provider 각 5/5 Ready |
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
@@ -83,18 +84,21 @@
 
 | 노드풀 | 머신 타입 | 노드 수 | 주요 워크로드 |
 |--------|-----------|---------|---------------|
-| `default-pool` | `e2-medium` Spot VM | 2 | `notiflex-api` 1 replica, Valkey, 관측성 및 GKE managed CSI |
+| `default-pool` | `e2-medium` Spot VM | 2 | Valkey, 관측성, Argo CD 및 컨트롤러 |
+| `api-pool` | `e2-medium` Spot VM | 1 | `notiflex-api` 1 replica |
+| `worker-pool` | `e2-standard-2` Spot VM | 1 | worker/Kafka 배치 준비, 현재 시스템 DaemonSet만 실행 |
+| `ops-pool` | `e2-small` Spot VM | 1 | 운영/CronJob 배치 준비, 현재 시스템 DaemonSet만 실행 |
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Rollout `notiflex-api` | `notiflex` | Canary, `sha-059f3ab`, step 6/6, Healthy, 1/1 Ready, CSI 파일 credential 사용 |
+| Rollout `notiflex-api` | `notiflex` | Canary, `sha-059f3ab`, step 6/6, Healthy, 1/1 Ready, `api-pool` nodeSelector와 CSI 파일 credential 사용 |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Canary ReplicaSet용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
-| Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 16/16 Up |
+| Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 28/28 Up |
 | ConfigMap `notiflex-dashboard` | `monitoring` | Grafana sidecar 로딩 완료, CPU·메모리·재시작 패널 구성 |
 | StatefulSet `loki`·Deployment `loki-gateway` | `monitoring` | Running, PVC 5Gi Bound, LogQL 조회 성공 |
-| DaemonSet `fluent-bit` | `monitoring` | 2/2 Ready, Loki push 및 Kubernetes 라벨 확인 |
+| DaemonSet `fluent-bit` | `monitoring` | 5/5 Ready, 모든 노드의 로그를 Loki로 push |
 | ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
 | PrometheusRule `pod-restart-alert` | `monitoring` | Operator 검증 완료, `PodRestartTooMany` health `ok`·현재 `inactive` |
 | Gateway `notiflex-gateway` | `notiflex` | `35.216.70.162`, `Programmed=True`, `GatewayHealthy=True` |

@@ -15,13 +15,13 @@
 | GCP 프로젝트 | `project-10edc337-9677-4dfc-91a` |
 | 클러스터 | GKE Standard `notiflex-cluster`, `asia-northeast3-a` |
 | Kubernetes | `1.35.6-gke.1250000` |
-| 노드풀 | `default-pool`, `e2-medium` Spot VM 2대 |
+| 노드풀 | `default-pool` 2대, `api-pool`·`worker-pool`·`ops-pool` 각 1대; 모두 Spot VM |
 | 컨테이너 런타임 | Container-Optimized OS, containerd `2.1.7` |
 | Workload Identity | `project-10edc337-9677-4dfc-91a.svc.id.goog` |
 | GKE 기능 | Gateway API, Secret Manager add-on, Workload Identity/GKE metadata server |
 | 외부 진입점 | Regional External Managed Gateway, `35.216.70.162:80` |
 
-두 노드에는 API와 Valkey가 서로 다른 노드에 배치된다. `helm-values/valkey.yaml`의 required Pod anti-affinity가 `notiflex-api`와 같은 노드를 피하도록 설정되어 있다. 현재 전용 노드풀이나 멀티테넌트 분리는 없다.
+`default-pool`은 `e2-medium` 2대로 Valkey·관측성·컨트롤러를 실행한다. `api-pool`은 `e2-medium` 1대로 API를 전담하고, `worker-pool`은 `e2-standard-2` 1대로 향후 Kafka를, `ops-pool`은 `e2-small` 1대로 향후 운영 작업을 받을 준비가 되어 있다. 새 풀은 모두 `pd-standard` 50GiB, Spot, `GKE_METADATA`를 사용한다. 현재 worker·ops 풀에는 시스템 DaemonSet만 실행되며 taint는 적용하지 않았다.
 
 ## 컴포넌트와 연결 관계
 
@@ -35,7 +35,7 @@ GKE Regional External Gateway (notiflex-gateway, 35.216.70.162)
 stable Service notiflex-api :80
   │ targetPort http/:8080, Rollout이 stable ReplicaSet selector 관리
   ▼
-Argo Rollout notiflex-api (replicas 1, image sha-059f3ab, API v0.3.2)
+Argo Rollout notiflex-api (replicas 1, api-pool nodeSelector, image sha-059f3ab, API v0.3.2)
   │
   ├─ DNS/TCP ──▶ valkey-primary.notiflex.svc.cluster.local:6379
   │               └─ Valkey StatefulSet 1 Pod, standalone, 공유 키 notiflex:id
@@ -56,6 +56,7 @@ Canary 시 별도 ReplicaSet
 - `VALKEY_ADDR`는 내부 DNS로 고정하고, credential은 `VALKEY_PASSWORD_FILE`의 읽기 전용 파일에서 읽는다.
 - readiness는 `/health`를 최초 2초 뒤 5초마다, liveness는 최초 5초 뒤 10초마다 검사한다.
 - 리소스는 request `25m/32Mi`, limit `200m/64Mi`이다. non-root, read-only root filesystem, capability 전체 제거, RuntimeDefault seccomp를 사용한다.
+- `cloud.google.com/gke-nodepool: api-pool` nodeSelector로 API Pod를 API 전용 풀에만 배치한다. taint가 없으므로 다른 일반 Pod가 api-pool에 배치되는 것까지 차단하지는 않는다.
 
 ### 트래픽과 Canary
 
@@ -92,7 +93,7 @@ Canary 시 별도 ReplicaSet
 - GitHub Actions 권한은 `id-token: write`, `contents: write`이다. 장기 GCP 키 대신 OIDC를 사용하며 repository secrets에는 provider·service account·project 식별자만 둔다.
 - Artifact Registry 경로는 `asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<TAG>`이다.
 - Argo CD Application은 `main/k8s/smb`를 `notiflex` namespace로 배포하고 `main`의 최신 커밋을 추적한다. 2026-08-08 실측 상태는 Synced/Healthy이다.
-- 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `8574b6b4c8`이다.
+- 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `7f56884766`이다.
 
 ## 관측 가능성
 
@@ -103,7 +104,7 @@ Canary 시 별도 ReplicaSet
 | Alertmanager | PrometheusRule 알림 라우팅; `PodRestartTooMany`는 `notiflex` Pod가 5분간 2회 초과 재시작 후 1분 지속 시 warning |
 | Loki | chart `7.2.0`, 앱 `3.6.11`; SingleBinary 1 replica, filesystem PVC 5Gi, 인증 비활성 |
 | Fluent Bit | chart `0.57.9`, 앱 `5.0.9`; 노드별 DaemonSet이 컨테이너 로그를 읽어 `loki-gateway.monitoring.svc:80`으로 전송 |
-| GKE managed collectors | `gmp-system` collector 2/2와 GKE metrics agent가 노드 메트릭을 수집 |
+| GKE managed collectors | `gmp-system` collector 5/5와 GKE metrics agent가 노드 메트릭을 수집 |
 | Tempo | 아직 설치하지 않았으며 ch8에서 도입 예정 |
 
 Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready이다. Grafana와 Prometheus는 ClusterIP이므로 기본적으로 클러스터 내부 접근 또는 port-forward를 사용한다.
@@ -116,7 +117,7 @@ Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready�
 | `argocd` | Application controller, API server, repo server, ApplicationSet, Dex, Redis; `notiflex-smb` Synced/Healthy |
 | `argo-rollouts` | Argo Rollouts controller `v1.9.1` 1/1 Ready |
 | `monitoring` | Prometheus, Grafana, Alertmanager, Loki, Fluent Bit, kube-state-metrics, node-exporter, PrometheusRule |
-| `kube-system` | GKE DNS/네트워크/메트릭 구성과 Secret Manager CSI driver/provider 각 2/2 Ready |
+| `kube-system` | GKE DNS/네트워크/메트릭 구성과 Secret Manager CSI driver/provider·metadata server 각 5/5 Ready |
 | `gmp-system` | Google Managed Prometheus operator·collector |
 
-현재 핵심 워크로드는 API Pod와 Valkey Pod 모두 Running이며 재시작은 0회다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.
+현재 API Pod는 `api-pool`, Valkey Pod는 `default-pool`에서 Running이며 재시작은 0회다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.

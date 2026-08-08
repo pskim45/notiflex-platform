@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.3.2`가 GKE에서 실행 중입니다. Valkey로 Pod 간 ID를 공유하고, GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo Rollouts Canary는 새 이미지 `sha-059f3ab` 배포에서 20%→50%→80%→100% 단계와 각 30초 pause를 완료했으며 Argo CD는 `Synced/Healthy`입니다.
+Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo Rollouts Canary는 새 이미지 `sha-059f3ab` 배포에서 20%→50%→80%→100% 단계와 각 30초 pause를 완료했으며 Argo CD는 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
