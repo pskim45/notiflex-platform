@@ -244,6 +244,8 @@ kubectl --context gke-sysnet4admin_book_gitaiops get \
 
 Codex를 포함한 AI 에이전트는 작업 전에 [AGENTS.md](AGENTS.md)를 읽어야 합니다. 이 파일에는 프로젝트 컨텍스트, GCP 대상, 검증 및 안전 규칙이 정의되어 있습니다.
 
+새 팀원은 [온보딩 가이드](ONBOARDING.md)에서 클러스터 구조, Argo CD·Grafana·API 접근, 배포 흐름과 운영 Q&A를 순서대로 확인할 수 있습니다.
+
 각 장을 마치면 저장소 전용 `$update-docs` 스킬로 그 시점의 코드·인프라와 모든 문서를 동기화하고 검증된 변경을 커밋합니다.
 
 ch3 이후 주요 기술 선택의 근거와 검토한 대안은 [Architecture Decision Records](docs/architecture-decisions.md)에 시간 순서대로 누적합니다.
