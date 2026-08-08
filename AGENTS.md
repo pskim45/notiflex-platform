@@ -22,6 +22,7 @@
 - `.github/workflows/`: CI/CD 워크플로
 - `helm-values/`: Helm chart의 재현 가능한 경량 설정
 - `monitoring/`: Grafana 대시보드 등 모니터링 리소스
+- `context/architecture.md`: 현재 컴포넌트, 연결 관계, namespace, 핵심 설정을 담은 아키텍처 스냅샷. 아키텍처 변경 전 읽고 변경 후 실측 상태로 갱신한다.
 - `JOURNEY.md`: 실습 진행 상태, 선택 이유, 버전, 리소스 및 트러블슈팅 기록. 파일이 존재하면 작업 전 읽고, 단계 완료 후 실제 결과만 반영한다.
 
 ## 고정 GCP 설정
