@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo CD App of Apps가 bootstrap·API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정을 Git에서 관리하며 8개 Application은 `Synced/Healthy`입니다.
+Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. SMB와 Enterprise는 각각 `notiflex`·`enterprise` namespace의 독립 Canary Rollout으로 배포되며, RBAC와 ResourceQuota도 분리됩니다. 두 환경은 현재 Valkey와 Secret Manager credential을 공유하므로 배포·권한·자원은 분리되지만 데이터는 분리되지 않습니다. Argo CD App of Apps가 전체 구성을 Git에서 관리하며 9개 Application은 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
@@ -31,6 +31,7 @@ notiflex-platform/
 │   └── apps/             # API와 Helm chart별 Application 선언
 ├── k8s/
 │   ├── monitoring/       # PrometheusRule 등 관측성 매니페스트
+│   ├── enterprise/       # Enterprise tenant API·identity·RBAC·quota
 │   └── smb/              # 애플리케이션 Kubernetes 매니페스트
 ├── helm-values/          # 관측성 Helm chart 경량 설정
 ├── monitoring/           # Grafana 대시보드와 데이터소스
@@ -106,9 +107,23 @@ kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 root sync 순서는 Application annotation으로 고정한다.
 
 ```text
-wave 0: bootstrap — notiflex·monitoring namespace
+wave 0: bootstrap — notiflex·enterprise·monitoring namespace
 wave 1: valkey, kube-prometheus, loki — 데이터·관측성 backend
-wave 2: fluent-bit, monitoring-config, notiflex-smb — 수집기·설정·API
+wave 2: fluent-bit, monitoring-config, notiflex-smb, notiflex-enterprise — 수집기·설정·tenant API
+```
+
+## 멀티테넌시
+
+`enterprise`는 별도 namespace, Canary Rollout, stable·preview ClusterIP Service, ServiceAccount/CSI identity, 읽기 전용 `tenant-reader` RBAC와 ResourceQuota를 갖습니다. API는 SMB와 같이 `api-pool`에 배치되지만 Enterprise Service는 외부 Gateway에 연결하지 않아 클러스터 내부에서만 접근할 수 있습니다.
+
+두 API는 `valkey-primary.notiflex.svc.cluster.local:6379`와 동일한 Secret Manager `valkey-password`를 사용합니다. 따라서 현재 구성은 실행 환경 격리이며 고객 데이터 격리가 아닙니다. 실제 검증에서도 Enterprise `/id` 다음 SMB `/id` 값이 연속 증가했습니다. 강한 고객 데이터 격리가 필요하면 고객별 Valkey와 credential을 분리해야 합니다.
+
+```bash
+kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-enterprise -n argocd
+kubectl --context gke-sysnet4admin_book_gitaiops get rollout,pod,resourcequota -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops auth can-i get pods --as=system:serviceaccount:enterprise:tenant-reader -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops auth can-i delete pods --as=system:serviceaccount:enterprise:tenant-reader -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops port-forward service/notiflex-api -n enterprise 8081:80
 ```
 
 GitOps 동기화 상태는 다음과 같이 확인합니다.

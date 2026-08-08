@@ -12,6 +12,7 @@
 - 배포: Argo CD + Argo Rollouts Canary
 - 외부 진입점: GKE 리전 외부 Gateway API
 - 관측성: kube-prometheus-stack, Loki, Fluent Bit
+- 멀티테넌시: `notiflex`(SMB)·`enterprise` namespace별 API/RBAC/Quota, 공유 Valkey
 - 상태·시크릿: Valkey, GCP Secret Manager, Workload Identity, GKE managed CSI
 
 ## 복구 전 로컬 설정
@@ -214,9 +215,13 @@ gcloud iam service-accounts add-iam-policy-binding $gsa `
   --project=$projectId `
   --member="serviceAccount:$projectId.svc.id.goog[notiflex/notiflex-api]" `
   --role=roles/iam.workloadIdentityUser
+gcloud iam service-accounts add-iam-policy-binding $gsa `
+  --project=$projectId `
+  --member="serviceAccount:$projectId.svc.id.goog[enterprise/notiflex-api]" `
+  --role=roles/iam.workloadIdentityUser
 ```
 
-IAM 전파 후 `root-app` 하나를 적용한다. root가 API와 네 Helm 앱, 모니터링 설정을 모두 등록한다.
+IAM 전파 후 `root-app` 하나를 적용한다. root가 SMB·Enterprise API와 네 Helm 앱, 모니터링 설정을 모두 등록한다.
 
 ```powershell
 kubectl --context gke-sysnet4admin_book_gitaiops apply -f argocd/root-app.yaml
@@ -231,9 +236,15 @@ kubectl --context gke-sysnet4admin_book_gitaiops get `
 kubectl --context gke-sysnet4admin_book_gitaiops get nodes
 kubectl --context gke-sysnet4admin_book_gitaiops get pods -A
 kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-smb -n argocd
+kubectl --context gke-sysnet4admin_book_gitaiops get application notiflex-enterprise -n argocd
 kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
+kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops get resourcequota -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops auth can-i get pods --as=system:serviceaccount:enterprise:tenant-reader -n enterprise
+kubectl --context gke-sysnet4admin_book_gitaiops auth can-i delete pods --as=system:serviceaccount:enterprise:tenant-reader -n enterprise
 kubectl --context gke-sysnet4admin_book_gitaiops get gateway,httproute -n notiflex
 kubectl --context gke-sysnet4admin_book_gitaiops get pvc -A
+kubectl --context gke-sysnet4admin_book_gitaiops get secretproviderclass,secretproviderclasspodstatus -n enterprise
 ```
 
 Gateway의 새 외부 IP를 조회해 API를 검증한다.
@@ -243,6 +254,16 @@ $gatewayIp = kubectl --context gke-sysnet4admin_book_gitaiops get gateway notifl
 Invoke-RestMethod "http://$gatewayIp/health"
 Invoke-RestMethod "http://$gatewayIp/version"
 ```
+
+Enterprise API는 외부 Gateway가 없으므로 필요할 때 내부 Service를 port-forward해 확인한다.
+
+```powershell
+kubectl --context gke-sysnet4admin_book_gitaiops port-forward service/notiflex-api -n enterprise 8081:80
+Invoke-RestMethod "http://localhost:8081/health"
+Invoke-RestMethod "http://localhost:8081/version"
+```
+
+두 tenant는 같은 Valkey와 `notiflex:id`를 공유한다. 이 검증은 환경 복구 확인용이며 고객별 데이터 격리 검증이 아니다.
 
 ## 종료 후 남겨도 과금되지 않는 구성
 

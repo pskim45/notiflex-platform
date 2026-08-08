@@ -21,7 +21,7 @@
 | GKE 기능 | Gateway API, Secret Manager add-on, Workload Identity/GKE metadata server |
 | 외부 진입점 | Regional External Managed Gateway, `35.216.50.229:80` |
 
-`default-pool`은 `e2-medium` 2대로 관측성·컨트롤러를 실행한다. `api-pool`은 `e2-medium` 1대로 API를 전담하고, `worker-pool`은 `e2-standard-2` 1대에서 Valkey를 실행하며 향후 Kafka를 받을 준비가 되어 있다. `ops-pool`은 `e2-small` 1대로 향후 운영 작업을 받는다. 새 풀은 모두 `pd-standard` 50GiB, Spot, `GKE_METADATA`를 사용하며 taint는 적용하지 않았다.
+`default-pool`은 `e2-medium` 2대로 관측성·컨트롤러를 실행한다. `api-pool`은 `e2-medium` 1대로 SMB와 Enterprise API를 전담하고, `worker-pool`은 `e2-standard-2` 1대에서 공유 Valkey를 실행하며 향후 Kafka를 받을 준비가 되어 있다. `ops-pool`은 `e2-small` 1대로 향후 운영 작업을 받는다. 새 풀은 모두 `pd-standard` 50GiB, Spot, `GKE_METADATA`를 사용하며 taint는 적용하지 않았다.
 
 ## 컴포넌트와 연결 관계
 
@@ -47,6 +47,15 @@ Argo Rollout notiflex-api (replicas 1, api-pool nodeSelector, image sha-059f3ab,
 Canary 시 별도 ReplicaSet
   └─ canary Service notiflex-api-preview :80
      (현재 HTTPRoute가 직접 참조하지 않음)
+
+Enterprise 내부 사용자
+  │ ClusterIP :80
+  ▼
+enterprise/notiflex-api Service
+  ▼
+enterprise/notiflex-api Canary Rollout (replicas 1, api-pool)
+  ├─ DNS/TCP ──▶ 위와 같은 공유 Valkey와 notiflex:id
+  └─ CSI mount ─▶ 위와 같은 Secret Manager credential
 ```
 
 ### 애플리케이션
@@ -85,8 +94,9 @@ Canary 시 별도 ReplicaSet
      → Artifact Registry notiflex/api:sha-<7자리 커밋>
      → k8s/smb/rollout.yaml 이미지 태그 자동 커밋
   → Argo CD root-app
-     → argocd/apps의 하위 Application 7개를 wave 0→1→2로 등록
-     → notiflex-smb는 k8s/smb, Helm 앱은 외부 chart + helm-values 감시
+     → argocd/apps의 하위 Application 8개를 wave 0→1→2로 등록
+     → notiflex-smb는 k8s/smb, notiflex-enterprise는 k8s/enterprise 감시
+     → Helm 앱은 외부 chart + helm-values 감시
      → 모든 앱 auto-sync + prune + selfHeal
   → Argo Rollouts controller
      → Canary 단계 실행 및 stable/canary Service selector 전환
@@ -94,7 +104,7 @@ Canary 시 별도 ReplicaSet
 
 - GitHub Actions 권한은 `id-token: write`, `contents: write`이다. 장기 GCP 키 대신 OIDC를 사용하며 repository secrets에는 provider·service account·project 식별자만 둔다.
 - Artifact Registry 경로는 `asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:<TAG>`이다.
-- `root-app`은 `argocd/apps/`를 감시한다. wave 0 `bootstrap`, wave 1 `valkey`·`kube-prometheus`·`loki`, wave 2 `fluent-bit`·`monitoring-config`·`notiflex-smb` 순서로 등록하며 root와 하위 앱 7개가 모두 Synced/Healthy이다.
+- `root-app`은 `argocd/apps/`를 감시한다. wave 0 `bootstrap`, wave 1 `valkey`·`kube-prometheus`·`loki`, wave 2 `fluent-bit`·`monitoring-config`·`notiflex-smb`·`notiflex-enterprise` 순서로 등록하며 root와 하위 앱 8개, 총 9개 Application이 모두 Synced/Healthy이다.
 - Helm 앱은 외부 chart의 고정 버전과 이 저장소의 `helm-values/`를 다중 source로 결합한다. 기존 Valkey·Grafana credential Secret을 명시적으로 재사용하며 일상 운영에서 Helm CLI를 실행하지 않는다.
 - 현재 Rollout은 step 6/6, Healthy, 1/1 Ready이며 stable ReplicaSet hash는 `7f56884766`이다.
 
@@ -117,10 +127,11 @@ Prometheus, Grafana, Alertmanager, Loki, Fluent Bit Pod는 현재 모두 Ready�
 | Namespace | 주요 컴포넌트 |
 |---|---|
 | `notiflex` | API Rollout/Pod, stable·preview Service, Gateway, HTTPRoute, HealthCheckPolicy, Valkey StatefulSet, ServiceAccount, SecretProviderClass |
-| `argocd` | Application controller, API server, repo server, Dex, Redis; `root-app`과 하위 Application 7개 모두 Synced/Healthy |
+| `enterprise` | 고객 전용 API Rollout/Pod, stable·preview ClusterIP Service, ServiceAccount, SecretProviderClass, 조회 전용 RBAC, ResourceQuota |
+| `argocd` | Application controller, API server, repo server, Dex, Redis; `root-app`과 하위 Application 8개 모두 Synced/Healthy |
 | `argo-rollouts` | Argo Rollouts controller `v1.9.1` 1/1 Ready |
 | `monitoring` | Prometheus, Grafana, Alertmanager, Loki, Fluent Bit, kube-state-metrics, node-exporter, PrometheusRule |
 | `kube-system` | GKE DNS/네트워크/메트릭 구성과 Secret Manager CSI driver/provider·metadata server 각 5/5 Ready |
 | `gmp-system` | Google Managed Prometheus operator·collector |
 
-현재 API Pod는 `api-pool`, Valkey Pod는 `worker-pool`에서 Running이며 재시작은 0회다. wave 설정 도입 중 namespace 소유권 이전으로 Valkey PVC가 재생성되어 공유 ID는 1부터 다시 시작했다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.
+현재 SMB와 Enterprise API Pod는 `api-pool`, 공유 Valkey Pod는 `worker-pool`에서 Running이다. Enterprise는 외부 Gateway 없이 내부 ClusterIP로만 노출된다. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 환경이 동일한 `notiflex:id`를 공유함을 확인했다. 즉 namespace·RBAC·quota·배포는 분리되지만 데이터와 credential은 분리되지 않는다. wave 설정 도입 중 namespace 소유권 이전으로 Valkey PVC가 재생성되어 공유 ID는 1부터 다시 시작했다. 이 문서의 IP, revision, Pod hash, 버전과 Ready 수는 가변 정보이므로 아키텍처 변경이나 환경 재구축 후 다시 실측해야 한다.

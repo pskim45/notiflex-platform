@@ -6,7 +6,7 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.3.2`, Canary, 역할별 노드풀과 Argo CD App of Apps까지 실행·검증했다. `root-app`이 bootstrap과 API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 Application을 Git에서 관리하며 모두 auto-sync/prune/selfHeal을 사용한다. sync wave는 0(namespace) → 1(backend) → 2(수집기·설정·API) 순서다. Helm 앱은 CLI가 아니라 `argocd/apps/`의 chart 선언과 `helm-values/`로 변경한다. API는 `api-pool`에 배치된다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
+- 현재 단계: API `v0.3.2`, Canary, 역할별 노드풀, Argo CD App of Apps와 namespace 기반 멀티테넌시까지 실행·검증했다. SMB와 Enterprise API는 각각 `notiflex`·`enterprise`에서 실행되고 RBAC·ResourceQuota는 분리되지만 Valkey와 credential은 공유한다. `root-app`은 하위 Application 8개를 Git에서 관리하며 모두 auto-sync/prune/selfHeal을 사용한다. sync wave는 0(namespace) → 1(backend) → 2(수집기·설정·tenant API) 순서다. Helm 앱은 CLI가 아니라 `argocd/apps/`의 chart 선언과 `helm-values/`로 변경한다. 두 API는 `api-pool`에 배치된다. 재구축은 `docs/shutdown-recovery.md`를 따른다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
@@ -18,6 +18,7 @@
 
 - `app/`: Go 소스, 테스트, 모듈 파일, Dockerfile
 - `k8s/smb/`: Notiflex Kubernetes 매니페스트
+- `k8s/enterprise/`: Enterprise tenant의 API, identity, RBAC, ResourceQuota 매니페스트
 - `k8s/monitoring/`: PrometheusRule 등 관측성 매니페스트
 - `.github/workflows/`: CI/CD 워크플로
 - `helm-values/`: Helm chart의 재현 가능한 경량 설정

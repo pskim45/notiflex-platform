@@ -133,3 +133,14 @@
 - 기존 chart 버전과 `helm-values/`를 다중 source Application에 명시해 수동 `helm upgrade` 의존성을 제거한다.
 - 하위 앱 7개 규모에서는 Application별 순수 YAML이 템플릿 generator보다 읽고 문제를 추적하기 쉽다.
 - 기존 Valkey·Grafana credential Secret과 PVC를 유지하면서 Helm CLI 설치 리소스를 안전하게 인수할 수 있다.
+
+## ADR-013: 고객 환경은 Namespace 단위로 분리 (7장)
+
+**시점**: 2026-08 / **결정**: 고객별 namespace에 독립 Rollout, ServiceAccount, RBAC, ResourceQuota를 두고 App of Apps로 관리한다. 현재 학습 환경에서는 Valkey와 Secret Manager credential을 공유한다. 단일 namespace의 라벨 격리, vCluster, 고객별 클러스터는 사용하지 않는다.
+
+**이유**:
+
+- Namespace는 단일 클러스터 비용을 유지하면서 리소스 이름, 권한, quota와 배포 수명주기를 분리한다.
+- 고객별 Argo CD Application과 Canary Rollout으로 한 고객의 배포 변경을 다른 고객과 독립적으로 진행할 수 있다.
+- Enterprise는 외부 Gateway에 연결하지 않은 ClusterIP Service만 사용해 현재 노출 범위를 최소화한다.
+- 공유 Valkey의 `notiflex:id`와 공유 credential은 데이터 경계를 만들지 않는다. 운영에서 강한 격리가 필요하면 고객별 Valkey·credential·NetworkPolicy 또는 별도 클러스터를 적용해야 한다.
