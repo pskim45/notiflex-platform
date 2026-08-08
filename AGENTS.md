@@ -26,6 +26,7 @@
 - `monitoring/`: Grafana 대시보드 등 모니터링 리소스
 - `claude-context/architecture.md`: 현재 컴포넌트, 연결 관계, namespace, 핵심 설정을 담은 아키텍처 스냅샷. 아키텍처 변경 전 읽고 변경 후 실측 상태로 갱신한다.
 - `JOURNEY.md`: 실습 진행 상태, 선택 이유, 버전, 리소스 및 트러블슈팅 기록. 파일이 존재하면 작업 전 읽고, 단계 완료 후 실제 결과만 반영한다.
+- `ONBOARDING.md`: 새 팀원을 위한 환경 준비, 실측 클러스터 구조, 서비스 접근, 배포 흐름과 운영 Q&A.
 - `command-guardrails/`: Kafka Topic 삭제, CronJob 수동 실행, tenant Namespace 삭제 같은 위험 작업의 사전 확인·승인·검증 절차. 해당 작업 전에 관련 문서를 읽는다.
 
 ## 고정 GCP 설정

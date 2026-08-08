@@ -37,7 +37,7 @@
 | ch8 | 8.2 트레이싱 | ✅ | 2026-08-08 | Tempo SingleBinary와 Grafana 데이터소스, OTel SDK를 GitOps로 설치하고 실제 Trace에서 HTTP→Valkey→Kafka produce→consume Span 연결 검증 |
 | ch8 | 8.3 CronJob | ✅ | 2026-08-08 | `notiflex-healthcheck`가 5분마다 내부 API `/health`를 점검하도록 선언하고 ops-pool 배치·성공 Job 로그 검증 |
 | ch8 | 위험 작업 가드레일 | ✅ | 2026-08-08 | Kafka Topic 삭제·CronJob 수동 실행·테넌트 Namespace 삭제의 사전 확인, 승인, 실행, 검증 및 중단 조건을 절차서로 기록 |
-| ch9 | 9.1 저장소 분석 | ✅ | 2026-08-08 | 55개 파일·약 2,930줄·75개 커밋을 분석하고 Argo CD 12개 앱 Synced/Healthy 및 Git↔클러스터 일치 확인 |
+| ch9 | 9.1 저장소 분석 | ✅ | 2026-08-08 | 최종 56개 파일·약 3,160줄·77개 커밋을 분석하고 Argo CD 12개 앱 Synced/Healthy 및 Git↔클러스터 일치 확인 |
 | ch9 | 9.2 회고 | ✅ | 2026-08-08 | managed GKE·Argo 생태계·Grafana 통합 관측·GitOps 호환이라는 반복 선택 기준과 기술 부채를 종합 |
 | ch9 | 9.3 온보딩 문서 | ✅ | 2026-08-08 | 실측 노드풀·namespace별 Pod, 저장소 구조, Argo CD·Grafana·API 접근, 배포 흐름과 운영 Q&A를 `ONBOARDING.md`에 기록 |
 | ch9 | 9.4 GitAIOps 분석 | ✅ | 2026-08-08 | Git의 선언·기억, AI의 해석·변경, Ops의 적용·검증이 JOURNEY·ADR·가드레일로 되먹임되는 루프 분석 |

@@ -44,6 +44,7 @@ notiflex-platform/
 ├── .github/
 │   └── workflows/        # GitHub Actions 워크플로
 ├── AGENTS.md             # Codex 등 AI 에이전트용 프로젝트 지침
+├── ONBOARDING.md         # 새 팀원의 환경·접근·배포·운영 시작 가이드
 └── README.md
 ```
 
@@ -66,7 +67,7 @@ notiflex-platform/
 ```bash
 gcloud config list
 gcloud auth configure-docker asia-northeast3-docker.pkg.dev
-kubectl config get-contexts
+kubectl --context gke-sysnet4admin_book_gitaiops config get-contexts
 ```
 
 GKE에 접근할 때는 다른 클러스터를 실수로 변경하지 않도록 모든 명령에 컨텍스트를 명시합니다.
