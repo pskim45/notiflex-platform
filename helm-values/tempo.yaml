@@ -1,0 +1,24 @@
+tempo:
+  reportingEnabled: false
+  memBallastSizeMbs: 0
+  retention: 24h
+  resources:
+    requests:
+      cpu: 25m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 384Mi
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+persistence:
+  enabled: false
+
+nodeSelector:
+  cloud.google.com/gke-nodepool: ops-pool

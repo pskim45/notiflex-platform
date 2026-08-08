@@ -57,10 +57,11 @@ jobs:
           set -euo pipefail
           test -n "${IMAGE_URI}"
           echo "Updating manifest to ${IMAGE_URI}"
-          sed -i -E "s#^([[:space:]]*image: ).*/notiflex/api:[^[:space:]]+#\1${IMAGE_URI}#" k8s/smb/rollout.yaml
+          sed -i -E "s#^([[:space:]]*image: ).*/notiflex/api:[^[:space:]]+#\1${IMAGE_URI}#" k8s/smb/rollout.yaml k8s/enterprise/rollout.yaml
           grep -F "image: ${IMAGE_URI}" k8s/smb/rollout.yaml
+          grep -F "image: ${IMAGE_URI}" k8s/enterprise/rollout.yaml
           git diff --check
-          if git diff --exit-code --quiet -- k8s/smb/rollout.yaml; then
+          if git diff --exit-code --quiet -- k8s/smb/rollout.yaml k8s/enterprise/rollout.yaml; then
             echo "Manifest already references ${IMAGE_URI}"
             exit 0
           fi
@@ -69,11 +70,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --exit-code --quiet -- k8s/smb/rollout.yaml; then
+          if git diff --exit-code --quiet -- k8s/smb/rollout.yaml k8s/enterprise/rollout.yaml; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add k8s/smb/rollout.yaml
+          git add k8s/smb/rollout.yaml k8s/enterprise/rollout.yaml
           git commit -m "ci: deploy sha-${SHORT_SHA} [skip ci]"
           git push origin HEAD:main

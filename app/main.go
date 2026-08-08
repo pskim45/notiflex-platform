@@ -13,9 +13,18 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/valkey-io/valkey-go"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-const version = "v0.4.0"
+const version = "v0.5.0"
 
 const idKey = "notiflex:id"
 
@@ -64,6 +73,19 @@ type idResponse struct {
 }
 
 func main() {
+	ctx := context.Background()
+	tracerProvider, err := initTracer(ctx, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracerProvider.Shutdown(shutdownCtx); err != nil {
+			log.Printf("OpenTelemetry 종료: %v", err)
+		}
+	}()
+
 	podName, err := os.Hostname()
 	if err != nil {
 		podName = "unknown"
@@ -91,7 +113,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":8080",
-		Handler:           newHandler(&api{podName: podName, ids: ids, events: events}),
+		Handler:           otelhttp.NewHandler(newHandler(&api{podName: podName, ids: ids, events: events}), "notiflex-api"),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -99,6 +121,27 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func initTracer(ctx context.Context, endpoint string) (*sdktrace.TracerProvider, error) {
+	options := []sdktrace.TracerProviderOption{
+		sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", "notiflex-api"))),
+	}
+	if endpoint != "" {
+		exporter, err := otlptracegrpc.New(ctx,
+			otlptracegrpc.WithEndpoint(endpoint),
+			otlptracegrpc.WithTLSCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("Tempo exporter 초기화 실패: %w", err)
+		}
+		options = append(options, sdktrace.WithBatcher(exporter))
+	}
+
+	provider := sdktrace.NewTracerProvider(options...)
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	return provider, nil
 }
 
 func newKafkaEvents(broker string) (*kafkaEvents, error) {
@@ -124,12 +167,21 @@ func newKafkaEvents(broker string) (*kafkaEvents, error) {
 }
 
 func (k *kafkaEvents) Publish(ctx context.Context, event notificationEvent) error {
+	ctx, span := otel.Tracer("notiflex-api").Start(ctx, "kafka.produce", trace.WithSpanKind(trace.SpanKindProducer))
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.destination.name", "notifications"))
+
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 	message := &sarama.ProducerMessage{Topic: "notifications", Key: sarama.StringEncoder(event.ID), Value: sarama.ByteEncoder(payload)}
+	carrier := saramaHeaderCarrier{message: message}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	_, _, err = k.producer.SendMessage(message)
+	if err != nil {
+		span.RecordError(err)
+	}
 	return err
 }
 
@@ -158,10 +210,48 @@ func (kafkaConsumerHandler) Setup(sarama.ConsumerGroupSession) error   { return 
 func (kafkaConsumerHandler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
 func (kafkaConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
+		ctx := otel.GetTextMapPropagator().Extract(context.Background(), saramaHeaderCarrier{consumerMessage: message})
+		_, span := otel.Tracer("notiflex-api").Start(ctx, "kafka.consume", trace.WithSpanKind(trace.SpanKindConsumer))
+		span.SetAttributes(attribute.String("messaging.destination.name", message.Topic))
 		log.Printf("Kafka consumer: received message on %s: %s", message.Topic, message.Value)
 		session.MarkMessage(message, "")
+		span.End()
 	}
 	return nil
+}
+
+type saramaHeaderCarrier struct {
+	message         *sarama.ProducerMessage
+	consumerMessage *sarama.ConsumerMessage
+}
+
+func (c saramaHeaderCarrier) Get(key string) string {
+	if c.consumerMessage == nil {
+		return ""
+	}
+	for _, header := range c.consumerMessage.Headers {
+		if string(header.Key) == key {
+			return string(header.Value)
+		}
+	}
+	return ""
+}
+
+func (c saramaHeaderCarrier) Set(key, value string) {
+	if c.message != nil {
+		c.message.Headers = append(c.message.Headers, sarama.RecordHeader{Key: []byte(key), Value: []byte(value)})
+	}
+}
+
+func (c saramaHeaderCarrier) Keys() []string {
+	if c.consumerMessage == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(c.consumerMessage.Headers))
+	for _, header := range c.consumerMessage.Headers {
+		keys = append(keys, string(header.Key))
+	}
+	return keys
 }
 
 func valkeyPassword() (string, error) {
@@ -215,8 +305,12 @@ func newValkeyIDStore(addr, password string) (*valkeyIDStore, error) {
 }
 
 func (s *valkeyIDStore) NextID(ctx context.Context) (uint64, error) {
+	ctx, span := otel.Tracer("notiflex-api").Start(ctx, "valkey.incr", trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	span.SetAttributes(attribute.String("db.system", "valkey"), attribute.String("db.operation.name", "INCR"))
 	id, err := s.client.Do(ctx, s.client.B().Incr().Key(idKey).Build()).AsInt64()
 	if err != nil {
+		span.RecordError(err)
 		return 0, err
 	}
 	return uint64(id), nil

@@ -55,6 +55,8 @@ spec:
               value: valkey-primary.notiflex.svc.cluster.local:6379
             - name: VALKEY_PASSWORD_FILE
               value: /mnt/secrets/valkey-password
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: tempo.monitoring.svc.cluster.local:4317
           volumeMounts:
             - name: secrets
               mountPath: /mnt/secrets
@@ -74,10 +76,10 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 32Mi
+              memory: 48Mi
             limits:
               cpu: 200m
-              memory: 64Mi
+              memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
