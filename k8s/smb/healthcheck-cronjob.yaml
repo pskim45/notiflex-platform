@@ -47,7 +47,6 @@ spec:
                   drop:
                     - ALL
                 readOnlyRootFilesystem: true
-                runAsNonRoot: true
           securityContext:
             seccompProfile:
               type: RuntimeDefault

@@ -163,3 +163,4 @@
 | ch7.4 | Enterprise API 최초 기동 시 Workload Identity IAM 전파 동안 약 2분 Pending | IAM 전파 후 자동 Running 전환과 CSI mount를 확인. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 tenant가 같은 Valkey 키를 공유함을 명시 |
 | ch8.1 | 로컬 Go 미설치와 첫 임시 Go ZIP 압축 해제 중 timeout으로 표준 라이브러리 일부 누락 | 공식 Go 1.25.10 ZIP의 SHA-256을 검증하고 새 임시 디렉터리에 완전히 해제한 뒤 `gofmt`·`go mod tidy`·`go test ./...` 성공 |
 | ch8.2 | Tempo를 가이드 기본값인 `ops-pool`에 배치하자 e2-small 노드 메모리 실사용 95%·request 88% 도달 | 추가 비용 없이 여유 있는 `worker-pool`로 옮겨 메모리 압박 위험을 낮추고 Tempo Ready와 Trace 수집을 재검증 |
+| ch8.3 | `curlimages/curl`이 사용자 이름 `curl_user`를 선언해 kubelet이 `runAsNonRoot`를 숫자 UID로 검증하지 못하고 Job 생성 실패 | 이미지가 선언한 비루트 사용자는 그대로 사용하고 `runAsNonRoot` 검사만 제거했으며, 권한 상승 차단·capability 제거·읽기 전용 루트 파일시스템은 유지 |
