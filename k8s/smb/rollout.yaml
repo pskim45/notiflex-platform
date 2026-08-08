@@ -23,6 +23,14 @@ spec:
       labels:
         app.kubernetes.io/name: notiflex-api
     spec:
+      serviceAccountName: notiflex-api
+      volumes:
+        - name: secrets
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: notiflex-secrets
       containers:
         - name: api
           image: asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:sha-9bc0e91
@@ -33,11 +41,12 @@ spec:
           env:
             - name: VALKEY_ADDR
               value: valkey-primary.notiflex.svc.cluster.local:6379
-            - name: VALKEY_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: valkey
-                  key: valkey-password
+            - name: VALKEY_PASSWORD_FILE
+              value: /mnt/secrets/valkey-password
+          volumeMounts:
+            - name: secrets
+              mountPath: /mnt/secrets
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
