@@ -14,7 +14,7 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-const version = "v0.3.1"
+const version = "v0.3.2"
 
 const idKey = "notiflex:id"
 
