@@ -16,7 +16,7 @@ singleBinary:
   replicas: 1
   resources:
     requests:
-      cpu: 10m
+      cpu: 5m
       memory: 128Mi
     limits:
       cpu: 200m
@@ -36,7 +36,7 @@ gateway:
   enabled: true
   resources:
     requests:
-      cpu: 5m
+      cpu: 1m
       memory: 32Mi
     limits:
       cpu: 100m
