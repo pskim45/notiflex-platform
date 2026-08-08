@@ -1,5 +1,9 @@
 architecture: standalone
 
+auth:
+  existingSecret: valkey
+  existingSecretPasswordKey: valkey-password
+
 primary:
   resourcesPreset: none
   affinity:
