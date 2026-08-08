@@ -2,9 +2,16 @@ architecture: standalone
 
 primary:
   resourcesPreset: none
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: notiflex-api
+          topologyKey: kubernetes.io/hostname
   resources:
     requests:
-      cpu: 50m
+      cpu: 10m
       memory: 64Mi
     limits:
       cpu: 200m
