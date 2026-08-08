@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:sha-af1e2ae
+          image: asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:sha-f75dc17
           imagePullPolicy: Always
           ports:
             - name: http
