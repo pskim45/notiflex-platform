@@ -16,6 +16,19 @@ type fakeIDStore struct {
 	err   error
 }
 
+type fakeEventPublisher struct {
+	events []notificationEvent
+	err    error
+}
+
+func (p *fakeEventPublisher) Publish(_ context.Context, event notificationEvent) error {
+	if p.err != nil {
+		return p.err
+	}
+	p.events = append(p.events, event)
+	return nil
+}
+
 func (s *fakeIDStore) NextID(context.Context) (uint64, error) {
 	if s.err != nil {
 		return 0, s.err
@@ -93,6 +106,34 @@ func TestNextIDStoreFailure(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/id", nil)
 	response := httptest.NewRecorder()
 	service := &api{podName: "test-pod", ids: &fakeIDStore{err: errors.New("unavailable")}}
+	newHandler(service).ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestNextIDPublishesKafkaEvent(t *testing.T) {
+	publisher := &fakeEventPublisher{}
+	service := testAPI()
+	service.events = publisher
+	request := httptest.NewRequest(http.MethodGet, "/id", nil)
+	response := httptest.NewRecorder()
+	newHandler(service).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || len(publisher.events) != 1 {
+		t.Fatalf("status = %d, events = %d", response.Code, len(publisher.events))
+	}
+	if publisher.events[0].ID != "1" || publisher.events[0].GeneratedBy != "test-pod" {
+		t.Fatalf("event = %#v", publisher.events[0])
+	}
+}
+
+func TestNextIDKafkaFailure(t *testing.T) {
+	service := testAPI()
+	service.events = &fakeEventPublisher{err: errors.New("unavailable")}
+	request := httptest.NewRequest(http.MethodGet, "/id", nil)
+	response := httptest.NewRecorder()
 	newHandler(service).ServeHTTP(response, request)
 
 	if response.Code != http.StatusServiceUnavailable {

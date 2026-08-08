@@ -11,10 +11,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/valkey-io/valkey-go"
 )
 
-const version = "v0.3.2"
+const version = "v0.4.0"
 
 const idKey = "notiflex:id"
 
@@ -29,6 +30,22 @@ type valkeyIDStore struct {
 type api struct {
 	podName string
 	ids     idStore
+	events  eventPublisher
+}
+
+type eventPublisher interface {
+	Publish(context.Context, notificationEvent) error
+}
+
+type notificationEvent struct {
+	ID          string    `json:"id"`
+	GeneratedBy string    `json:"generated_by"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+type kafkaEvents struct {
+	producer sarama.SyncProducer
+	group    sarama.ConsumerGroup
 }
 
 type healthResponse struct {
@@ -63,9 +80,18 @@ func main() {
 	}
 	defer ids.Close()
 
+	events, err := newKafkaEvents(os.Getenv("KAFKA_BROKER"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if events != nil {
+		defer events.Close()
+		go events.Consume(context.Background())
+	}
+
 	server := &http.Server{
 		Addr:              ":8080",
-		Handler:           newHandler(&api{podName: podName, ids: ids}),
+		Handler:           newHandler(&api{podName: podName, ids: ids, events: events}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -73,6 +99,69 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func newKafkaEvents(broker string) (*kafkaEvents, error) {
+	if broker == "" {
+		return nil, nil
+	}
+
+	cfg := sarama.NewConfig()
+	cfg.Version = sarama.V4_1_0_0
+	cfg.Producer.Return.Successes = true
+	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+
+	producer, err := sarama.NewSyncProducer([]string{broker}, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("Kafka producer 연결 실패: %w", err)
+	}
+	group, err := sarama.NewConsumerGroup([]string{broker}, "notiflex-api", cfg)
+	if err != nil {
+		producer.Close()
+		return nil, fmt.Errorf("Kafka consumer 연결 실패: %w", err)
+	}
+	return &kafkaEvents{producer: producer, group: group}, nil
+}
+
+func (k *kafkaEvents) Publish(ctx context.Context, event notificationEvent) error {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	message := &sarama.ProducerMessage{Topic: "notifications", Key: sarama.StringEncoder(event.ID), Value: sarama.ByteEncoder(payload)}
+	_, _, err = k.producer.SendMessage(message)
+	return err
+}
+
+func (k *kafkaEvents) Consume(ctx context.Context) {
+	handler := kafkaConsumerHandler{}
+	for ctx.Err() == nil {
+		if err := k.group.Consume(ctx, []string{"notifications"}, handler); err != nil {
+			log.Printf("Kafka consumer 오류: %v", err)
+			time.Sleep(time.Second)
+		}
+	}
+}
+
+func (k *kafkaEvents) Close() {
+	if err := k.group.Close(); err != nil {
+		log.Printf("Kafka consumer 종료: %v", err)
+	}
+	if err := k.producer.Close(); err != nil {
+		log.Printf("Kafka producer 종료: %v", err)
+	}
+}
+
+type kafkaConsumerHandler struct{}
+
+func (kafkaConsumerHandler) Setup(sarama.ConsumerGroupSession) error   { return nil }
+func (kafkaConsumerHandler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
+func (kafkaConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for message := range claim.Messages() {
+		log.Printf("Kafka consumer: received message on %s: %s", message.Topic, message.Value)
+		session.MarkMessage(message, "")
+	}
+	return nil
 }
 
 func valkeyPassword() (string, error) {
@@ -164,8 +253,16 @@ func (a *api) nextID(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, healthResponse{Status: "Valkey unavailable"})
 		return
 	}
+	idString := strconv.FormatUint(id, 10)
+	if a.events != nil {
+		if err := a.events.Publish(r.Context(), notificationEvent{ID: idString, GeneratedBy: a.podName, Timestamp: time.Now().UTC()}); err != nil {
+			log.Printf("Kafka publish: %v", err)
+			writeJSON(w, http.StatusServiceUnavailable, healthResponse{Status: "Kafka unavailable"})
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, idResponse{
-		ID:          strconv.FormatUint(id, 10),
+		ID:          idString,
 		GeneratedBy: a.podName,
 	})
 }

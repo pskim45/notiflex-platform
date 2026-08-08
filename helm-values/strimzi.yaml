@@ -1,0 +1,13 @@
+watchNamespaces:
+  - kafka
+
+nodeSelector:
+  cloud.google.com/gke-nodepool: worker-pool
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 384Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

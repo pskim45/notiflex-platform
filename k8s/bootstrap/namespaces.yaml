@@ -19,6 +19,15 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: kafka
+  labels:
+    notiflex.io/scope: platform
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: enterprise
   labels:
     notiflex.io/tenant: enterprise
