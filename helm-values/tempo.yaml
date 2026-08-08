@@ -21,4 +21,4 @@ persistence:
   enabled: false
 
 nodeSelector:
-  cloud.google.com/gke-nodepool: ops-pool
+  cloud.google.com/gke-nodepool: worker-pool
