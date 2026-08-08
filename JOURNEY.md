@@ -28,7 +28,7 @@
 | ch6 | 6.1 캐시 | ✅ | 2026-08-08 | Valkey standalone 설치, API `v0.3.0`의 `INCR notiflex:id` 전환 및 외부 ID 1~6·저장값 일치 검증 |
 | ch6 | 6.2 시크릿 관리 | ✅ | 2026-08-08 | GCP Secret Manager·Workload Identity·GKE managed CSI로 Valkey credential 파일 마운트 및 외부 API 검증 |
 | ch6 | 6.3 Canary 전환 | ✅ | 2026-08-08 | Argo Rollouts Canary 전환, `v0.3.2`에서 20%·50%·80% 각 30초 pause와 100% 승격 검증 |
-| ch6 | 6.4 아키텍처 컨텍스트 | ✅ | 2026-08-08 | `context/architecture.md`에 현재 컴포넌트·연결 관계·핵심 설정·namespace·배포 및 관측성 경로를 클러스터 실측 기준으로 기록 |
+| ch6 | 6.4 아키텍처 컨텍스트 | ✅ | 2026-08-08 | `claude-context/architecture.md`에 현재 컴포넌트·연결 관계·핵심 설정·namespace·배포 및 관측성 경로를 클러스터 실측 기준으로 기록 |
 | ch7 | 7.2 멀티 노드풀 | ⬜ | | |
 | ch7 | 7.3 App of Apps | ⬜ | | |
 | ch7 | 7.4 멀티테넌시 | ⬜ | | |

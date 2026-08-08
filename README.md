@@ -24,7 +24,7 @@ Notiflex API `v0.3.2`가 GKE에서 실행 중입니다. Valkey로 Pod 간 ID를 
 ```text
 notiflex-platform/
 ├── app/                  # Go 애플리케이션과 Dockerfile
-├── context/
+├── claude-context/
 │   └── architecture.md   # 현재 컴포넌트·연결·설정 아키텍처 스냅샷
 ├── argocd/
 │   └── notiflex-smb.yaml # Argo CD Application 선언
@@ -213,7 +213,7 @@ Codex를 포함한 AI 에이전트는 작업 전에 [AGENTS.md](AGENTS.md)를 �
 
 ch3 이후 주요 기술 선택의 근거와 검토한 대안은 [Architecture Decision Records](docs/architecture-decisions.md)에 시간 순서대로 누적합니다.
 
-현재 클러스터의 컴포넌트, 연결 관계, 배포·credential·관측성 설정은 [현재 아키텍처](context/architecture.md)에서 한눈에 확인할 수 있습니다.
+현재 클러스터의 컴포넌트, 연결 관계, 배포·credential·관측성 설정은 [현재 아키텍처](claude-context/architecture.md)에서 한눈에 확인할 수 있습니다.
 
 비용 중단을 위해 실습 인프라를 삭제한 뒤 재구축할 때는 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)를 따릅니다.
 
