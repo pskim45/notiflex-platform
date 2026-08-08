@@ -32,6 +32,7 @@
 | ch7 | 7.2 멀티 노드풀 | ✅ | 2026-08-08 | `api-pool`·`worker-pool`·`ops-pool` 생성, API nodeSelector 적용과 Canary 재배포 후 전용 노드 배치·CSI credential·외부 API 검증 |
 | ch7 | 7.3 App of Apps | ✅ | 2026-08-08 | `root-app` 아래 bootstrap·API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 7개 하위 앱과 wave 0→1→2 순서를 구성하고 전체 Synced/Healthy 검증 |
 | ch7 | 7.4 멀티테넌시 | ✅ | 2026-08-08 | `enterprise` 전용 namespace·Canary Rollout·RBAC·ResourceQuota·CSI identity를 추가하고 App of Apps 동기화와 API/공유 Valkey 동작 검증 |
+| ch7 | 권한 분리 체험 | ✅ | 2026-08-08 | 로컬 `settings.local.json`으로 `kubectl delete/apply` 차단과 노드풀 삭제 승인 요청을 확인하고, 삭제 거부 후 설정·백업·Git 변경 없이 완전히 되돌림 |
 | ch8 | 8.1 메시징 | ⬜ | | |
 | ch8 | 8.2 트레이싱 | ⬜ | | |
 | ch8 | 8.3 CronJob | ⬜ | | |
