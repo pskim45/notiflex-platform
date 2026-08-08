@@ -6,13 +6,13 @@
 
 - 프로젝트명: Notiflex
 - 목적: B2B 고객에게 여러 채널의 알림을 전달하는 SaaS 플랫폼을 구축하고 운영한다.
-- 현재 단계: API `v0.2.2`, Argo CD GitOps, GitHub Actions CI-CD, 관측성 스택, GKE Gateway API 외부 접근, Argo Rollouts Blue/Green 배포까지 검증한 뒤 비용 중단을 위해 GCP 실습 인프라를 삭제했다. 재구축은 `docs/shutdown-recovery.md`를 따른다. ch3~ch5의 주요 기술 선택은 `docs/architecture-decisions.md`에 기록한다. Pod 재시작 PrometheusRule의 외부 수신 채널과 Firing 검증은 재구축 후 진행한다. 이후 Canary 배포를 확장한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
+- 현재 단계: API `v0.3.2`, Argo CD GitOps, GitHub Actions CI-CD, 관측성 스택, GKE Gateway API, Valkey 상태 공유, Secret Manager CSI 파일 credential, Argo Rollouts Canary까지 실행·검증했다. Canary는 20%→50%→80%→100% 단계를 수행하지만 replica 1과 stable Service 기반 HTTPRoute에서는 Gateway 수준의 정밀 트래픽 분할이 아니다. 재구축은 `docs/shutdown-recovery.md`를 따른다. 주요 기술 선택은 `docs/architecture-decisions.md`에 기록한다. 존재하지 않는 구현이나 배포 상태를 추정하지 않는다.
 - 애플리케이션: 외부 웹 프레임워크 없이 Go 표준 라이브러리를 사용한다.
 - 컨테이너: 정적 Go 바이너리를 빌드하고 최종 이미지는 `scratch`를 사용한다.
 - 인프라: GKE Standard 영역 클러스터와 Spot VM을 사용한다.
 - GitOps: Argo CD를 기준으로 한다.
 - 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit을 사용하며 Tempo는 ch8에서 도입할 예정이다.
-- 배포 전략은 Rolling Update, Blue/Green, Canary 순으로 발전시킨다.
+- 배포 전략은 Rolling Update와 Blue/Green을 거쳐 Argo Rollouts Canary로 전환했다.
 
 ## 저장소 구조
 

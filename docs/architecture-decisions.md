@@ -68,7 +68,7 @@
 - Gateway와 HTTPRoute가 인프라 진입점과 애플리케이션 라우팅 책임을 분리한다.
 - HTTPRoute의 `backendRefs` 구조를 이용해 이후 점진적 배포와 트래픽 분배로 확장할 수 있다.
 
-## ADR-007: 무중단 배포는 Argo Rollouts Blue/Green (5장)
+## ADR-007: 무중단 배포는 Argo Rollouts Blue/Green (5장, ADR-010으로 대체)
 
 **시점**: 2026-08 / **결정**: Kubernetes Deployment의 Rolling Update 대신 Argo Rollouts의 Blue/Green 전략을 사용한다. 현재 단계에서는 Flagger와 Canary 전략을 도입하지 않는다.
 
@@ -78,3 +78,36 @@
 - Rollout CRD의 YAML로 active·preview Service, 자동 승격, 이전 버전 축소 지연을 선언할 수 있다.
 - 새 Green ReplicaSet이 준비되는 동안 기존 Blue가 모든 외부 트래픽을 처리해 배포와 트래픽 전환을 분리한다.
 - 현재 2 replica 규모에서는 일시적인 리소스 2배 사용을 감당할 수 있고, Canary는 신뢰할 수 있는 메트릭 기반 판정 기준을 마련한 뒤 도입하는 편이 안전하다.
+
+## ADR-008: Pod 간 상태 공유는 Valkey (6장)
+
+**시점**: 2026-08 / **결정**: Pod별 인메모리 ID 카운터를 Valkey standalone의 원자적 `INCR`로 대체한다. Redis, Memcached, DragonflyDB는 사용하지 않는다.
+
+**이유**:
+
+- 여러 API Pod가 동일한 카운터를 사용해 중복 ID를 방지한다.
+- Redis 프로토콜과 클라이언트 생태계를 사용하면서 BSD 라이선스를 유지한다.
+- 현재 학습 환경에서는 1 Pod와 PVC를 사용하는 standalone 구성이 충분하다.
+- `resourcesPreset=none`과 명시적 request/limit으로 2노드 e2-medium 예산에 맞출 수 있다.
+
+## ADR-009: 애플리케이션 credential은 Secret Manager CSI와 Workload Identity (6장)
+
+**시점**: 2026-08 / **결정**: Notiflex가 사용하는 Valkey credential을 GCP Secret Manager에 저장하고 GKE managed Secrets Store CSI로 읽기 전용 파일에 마운트한다. 장기 서비스 계정 키와 애플리케이션 환경변수 credential은 사용하지 않는다.
+
+**이유**:
+
+- Workload Identity의 단기 토큰으로 GCP에 인증해 JSON 서비스 계정 키를 만들지 않는다.
+- `notiflex-api` KSA와 `notiflex-sa` GSA에 `valkey-password` accessor 최소 권한만 부여한다.
+- credential 값은 Git과 Pod 환경변수에 없고 Secret Manager가 버전과 IAM 감사 경계를 제공한다.
+- GKE managed driver와 provider를 사용해 별도 외부 Secret Operator를 운영하지 않는다.
+
+## ADR-010: 배포 전략은 Argo Rollouts Canary (6장)
+
+**시점**: 2026-08 / **결정**: ADR-007의 Blue/Green을 Argo Rollouts Canary로 대체하고 20%→50%→80%→100% 단계마다 30초 pause를 둔다. 별도 Flagger나 서비스 메시는 도입하지 않는다.
+
+**이유**:
+
+- 기존 Argo CD와 Rollout CRD를 유지하면서 새 버전 노출을 단계적으로 관찰할 수 있다.
+- `v0.3.2` 배포에서 step 1·3·5의 pause와 step 6 승격을 실제 확인했다.
+- Blue/Green의 0%→100% 일괄 전환보다 문제를 발견하고 중단할 관찰 구간이 명시적이다.
+- 현재 replica 1과 stable Service 기반 HTTPRoute에서는 정밀한 Gateway 트래픽 비율이 아니므로, 실제 가중 라우팅은 노드풀·replica 확장 후 별도로 도입한다.

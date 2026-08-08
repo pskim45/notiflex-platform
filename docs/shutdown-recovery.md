@@ -8,10 +8,11 @@
 - 리전/존: `asia-northeast3` / `asia-northeast3-a`
 - 클러스터: GKE Standard `notiflex-cluster`
 - 노드풀: `default-pool`, Spot `e2-medium` 2대, 부팅 디스크 30GiB
-- 애플리케이션: `v0.2.2`, 이미지 태그 `sha-bff731e`
-- 배포: Argo CD + Argo Rollouts Blue/Green
+- 애플리케이션: `v0.3.2`, 이미지 태그 `sha-059f3ab`
+- 배포: Argo CD + Argo Rollouts Canary
 - 외부 진입점: GKE 리전 외부 Gateway API
 - 관측성: kube-prometheus-stack, Loki, Fluent Bit
+- 상태·시크릿: Valkey, GCP Secret Manager, Workload Identity, GKE managed CSI
 
 ## 복구 전 로컬 설정
 
@@ -37,7 +38,7 @@ gh run watch $runId --repo pskim45/notiflex-platform --exit-status
 git pull --ff-only origin main
 ```
 
-GitHub Actions가 새 SHA 이미지 태그를 게시하고 `k8s/smb/rollout.yaml`을 자동 갱신한다. 기존 `sha-bff731e` 이미지는 삭제됐으므로 새 CI 실행 없이 이전 매니페스트를 배포하면 `ImagePullBackOff`가 발생한다.
+GitHub Actions가 새 SHA 이미지 태그를 게시하고 `k8s/smb/rollout.yaml`을 자동 갱신한다. 종료 전에 사용하던 이미지는 삭제됐으므로 새 CI 실행 없이 이전 매니페스트를 배포하면 `ImagePullBackOff`가 발생한다.
 
 ## 2. GKE 클러스터 복구
 
@@ -49,6 +50,8 @@ gcloud container clusters create notiflex-cluster `
   --num-nodes 2 `
   --spot `
   --gateway-api standard `
+  --workload-pool project-10edc337-9677-4dfc-91a.svc.id.goog `
+  --enable-secret-manager `
   --disk-size 30
 
 gcloud container clusters get-credentials notiflex-cluster `
@@ -63,6 +66,16 @@ kubectl config get-contexts
 kubectl config delete-context gke-sysnet4admin_book_gitaiops
 kubectl config rename-context (kubectl config current-context) gke-sysnet4admin_book_gitaiops
 kubectl --context gke-sysnet4admin_book_gitaiops get nodes
+```
+
+노드풀의 Workload Identity metadata mode도 확인한다. 비어 있으면 업데이트가 완료될 때까지 기다린 뒤 다음 단계로 진행한다.
+
+```powershell
+gcloud container node-pools update default-pool `
+  --cluster notiflex-cluster `
+  --project project-10edc337-9677-4dfc-91a `
+  --zone asia-northeast3-a `
+  --workload-metadata GKE_METADATA
 ```
 
 ## 3. Argo Rollouts 설치
@@ -144,7 +157,68 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply -f k8s/monitoring/pod-res
 
 새 Loki PVC와 빈 데이터 디스크가 만들어진다. 과거 로그는 돌아오지 않는다.
 
-## 7. 최종 검증
+## 7. Valkey와 Secret Manager 복구
+
+Valkey를 먼저 설치해 새 Kubernetes Secret과 비밀번호를 생성한다.
+
+```powershell
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm upgrade --install valkey bitnami/valkey `
+  --version 6.2.6 `
+  --namespace notiflex `
+  --values helm-values/valkey.yaml `
+  --wait --timeout 10m
+```
+
+Secret Manager API와 `notiflex-sa`를 복구한다. 비밀번호 값은 콘솔에 출력하거나 Git에 저장하지 않는다.
+
+```powershell
+$projectId = "project-10edc337-9677-4dfc-91a"
+$gsa = "notiflex-sa@$projectId.iam.gserviceaccount.com"
+
+gcloud services enable secretmanager.googleapis.com --project=$projectId
+gcloud iam service-accounts create notiflex-sa `
+  --project=$projectId `
+  --display-name="Notiflex workload identity"
+gcloud secrets create valkey-password `
+  --project=$projectId `
+  --replication-policy=automatic
+
+$secret = kubectl --context gke-sysnet4admin_book_gitaiops `
+  get secret valkey -n notiflex -o json | ConvertFrom-Json
+$bytes = [Convert]::FromBase64String($secret.data.'valkey-password')
+$tempFile = New-TemporaryFile
+try {
+  [IO.File]::WriteAllBytes($tempFile.FullName, $bytes)
+  gcloud secrets versions add valkey-password `
+    --project=$projectId `
+    --data-file=$tempFile.FullName
+} finally {
+  Remove-Item -LiteralPath $tempFile.FullName -Force
+  Remove-Variable bytes
+}
+
+gcloud secrets add-iam-policy-binding valkey-password `
+  --project=$projectId `
+  --member="serviceAccount:$gsa" `
+  --role=roles/secretmanager.secretAccessor
+gcloud iam service-accounts add-iam-policy-binding $gsa `
+  --project=$projectId `
+  --member="serviceAccount:$projectId.svc.id.goog[notiflex/notiflex-api]" `
+  --role=roles/iam.workloadIdentityUser
+```
+
+IAM 전파 후 Argo CD를 hard refresh하면 `ServiceAccount`와 `SecretProviderClass`가 적용되고 Notiflex Pod에 Secret Manager version이 마운트된다.
+
+```powershell
+kubectl --context gke-sysnet4admin_book_gitaiops annotate `
+  application notiflex-smb -n argocd `
+  argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context gke-sysnet4admin_book_gitaiops get `
+  secretproviderclass,secretproviderclasspodstatus -n notiflex
+```
+
+## 8. 최종 검증
 
 ```powershell
 kubectl --context gke-sysnet4admin_book_gitaiops get nodes

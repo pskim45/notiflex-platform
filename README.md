@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.2.2`와 Argo Rollouts Blue/Green 배포까지 검증한 뒤, 지속 비용을 중단하기 위해 2026-08-04에 GCP 실습 인프라를 삭제했습니다. GKE 클러스터, Gateway 로드밸런서, 영구 디스크, Artifact Registry 이미지와 Cloud Build 버킷은 현재 존재하지 않습니다. 코드·매니페스트·Helm values·CI 워크플로는 Git에 보존되어 있으며 [GCP 실습 환경 종료 및 복구](docs/shutdown-recovery.md)에 따라 재구축할 수 있습니다.
+Notiflex API `v0.3.2`가 GKE에서 실행 중입니다. Valkey로 Pod 간 ID를 공유하고, GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo Rollouts Canary는 새 이미지 `sha-059f3ab` 배포에서 20%→50%→80%→100% 단계와 각 30초 pause를 완료했으며 Argo CD는 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
@@ -15,7 +15,9 @@ Notiflex API `v0.2.2`와 Argo Rollouts Blue/Green 배포까지 검증한 뒤, �
 - 이미지 저장소: Artifact Registry
 - GitOps: Argo CD
 - 관측 가능성: Prometheus, Grafana, Loki, Fluent Bit (Tempo는 ch8 예정)
-- 배포 전략: Rolling Update → Blue/Green → Canary
+- 상태 공유: Valkey standalone
+- 시크릿: GCP Secret Manager, Workload Identity, GKE managed Secrets Store CSI
+- 배포 전략: Rolling Update → Blue/Green → Argo Rollouts Canary
 
 ## 디렉터리 구조
 
@@ -73,8 +75,12 @@ kubectl --context gke-sysnet4admin_book_gitaiops get pods -n notiflex
 ```bash
 cd app
 go test ./...
+VALKEY_ADDR=localhost:6379 \
+VALKEY_PASSWORD='<LOCAL_VALKEY_PASSWORD>' \
 go run .
 ```
+
+클러스터에서는 비밀번호 환경변수 대신 GKE CSI가 마운트한 `VALKEY_PASSWORD_FILE=/mnt/secrets/valkey-password`를 사용합니다.
 
 필요하면 다음 명령으로 Cloud Build를 수동 실행해 이미지를 Artifact Registry에 게시할 수 있습니다.
 
@@ -127,16 +133,16 @@ GKE Gateway API가 리전 외부 HTTP 로드밸런서를 구성합니다. `notif
 
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops get gateway,httproute -n notiflex
-curl http://35.216.50.229/health
-curl http://35.216.50.229/id
-curl http://35.216.50.229/version
+curl http://35.216.70.162/health
+curl http://35.216.70.162/id
+curl http://35.216.70.162/version
 ```
 
-현재 외부 IP는 `35.216.50.229`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
+현재 외부 IP는 `35.216.70.162`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
 
-## Blue/Green 배포
+## Canary 배포
 
-Argo Rollouts `v1.9.1`이 `argo-rollouts` 네임스페이스에서 실행됩니다. `notiflex-api` Rollout은 새 Green ReplicaSet을 `notiflex-api-preview` Service에 연결하고 30초 동안 준비 상태를 유지한 뒤, `notiflex-api` active Service를 자동으로 전환합니다. 이전 Blue ReplicaSet은 전환 30초 후 scale down됩니다.
+Argo Rollouts `v1.9.1`이 `argo-rollouts` 네임스페이스에서 실행됩니다. `notiflex-api` Rollout은 새 ReplicaSet에 20%, 50%, 80% weight를 순서대로 설정하고 각 단계에서 30초간 관찰한 뒤 100%로 승격합니다.
 
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops create namespace argo-rollouts
@@ -146,10 +152,10 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply --server-side \
 
 kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
 kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
-curl http://35.216.50.229/version
+curl http://35.216.70.162/version
 ```
 
-최근 재배포에서는 `v0.2.1` Blue가 외부 트래픽을 받는 동안 `v0.2.2` Green이 별도 ReplicaSet으로 준비되고, 자동 승격 후 active Service와 외부 응답이 `v0.2.2`로 전환되는 것을 확인했습니다.
+`v0.3.1`에서 `v0.3.2`로 재배포하면서 step 1(20%), step 3(50%), step 5(80%)의 30초 pause와 step 6(100%) 완료를 확인했습니다. 현재 replica가 1이고 HTTPRoute가 stable Service만 참조하므로 이 weight는 Rollout 진행 단계이며 Gateway 수준의 정밀한 요청 비율은 아닙니다. 실제 20/50/80 트래픽 분할은 ch7 노드풀·replica 확장 후 Gateway API traffic routing 연동으로 고도화해야 합니다.
 
 ## 메트릭 모니터링
 
