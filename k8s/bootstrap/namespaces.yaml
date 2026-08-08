@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: notiflex
+  labels:
+    notiflex.io/tenant: smb
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 ---
@@ -9,5 +11,16 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: monitoring
+  labels:
+    notiflex.io/scope: platform
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: enterprise
+  labels:
+    notiflex.io/tenant: enterprise
   annotations:
     argocd.argoproj.io/sync-options: Prune=false

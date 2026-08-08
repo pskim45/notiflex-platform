@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: notiflex-api
+  namespace: enterprise
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: notiflex-api
+    notiflex.io/tenant: enterprise
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notiflex-api-preview
+  namespace: enterprise
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: notiflex-api
+    notiflex.io/tenant: enterprise
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
