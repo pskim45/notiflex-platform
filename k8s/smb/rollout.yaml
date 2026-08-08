@@ -42,7 +42,7 @@ spec:
               secretProviderClass: notiflex-secrets
       containers:
         - name: api
-          image: asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:sha-27fdb5e
+          image: asia-northeast3-docker.pkg.dev/project-10edc337-9677-4dfc-91a/notiflex/api:sha-eee42f5
           imagePullPolicy: Always
           ports:
             - name: http
