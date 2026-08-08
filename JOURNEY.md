@@ -37,11 +37,11 @@
 | ch8 | 8.2 트레이싱 | ✅ | 2026-08-08 | Tempo SingleBinary와 Grafana 데이터소스, OTel SDK를 GitOps로 설치하고 실제 Trace에서 HTTP→Valkey→Kafka produce→consume Span 연결 검증 |
 | ch8 | 8.3 CronJob | ✅ | 2026-08-08 | `notiflex-healthcheck`가 5분마다 내부 API `/health`를 점검하도록 선언하고 ops-pool 배치·성공 Job 로그 검증 |
 | ch8 | 위험 작업 가드레일 | ✅ | 2026-08-08 | Kafka Topic 삭제·CronJob 수동 실행·테넌트 Namespace 삭제의 사전 확인, 승인, 실행, 검증 및 중단 조건을 절차서로 기록 |
-| ch9 | 9.1 저장소 분석 | ⬜ | | |
-| ch9 | 9.2 회고 | ⬜ | | |
+| ch9 | 9.1 저장소 분석 | ✅ | 2026-08-08 | 55개 파일·약 2,930줄·75개 커밋을 분석하고 Argo CD 12개 앱 Synced/Healthy 및 Git↔클러스터 일치 확인 |
+| ch9 | 9.2 회고 | ✅ | 2026-08-08 | managed GKE·Argo 생태계·Grafana 통합 관측·GitOps 호환이라는 반복 선택 기준과 기술 부채를 종합 |
 | ch9 | 9.3 온보딩 문서 | ⬜ | | |
-| ch9 | 9.4 GitAIOps 분석 | ⬜ | | |
-| ch9 | 9.5 마무리 | ⬜ | | |
+| ch9 | 9.4 GitAIOps 분석 | ✅ | 2026-08-08 | Git의 선언·기억, AI의 해석·변경, Ops의 적용·검증이 JOURNEY·ADR·가드레일로 되먹임되는 루프 분석 |
+| ch9 | 9.5 마무리 | ✅ | 2026-08-08 | 알림·헬스체크, 진짜 비동기 처리, 보안, 고가용성·스케일링, 데이터 격리와 비용 최적화 로드맵 제안 |
 
 ## 도구 선택 기록
 
@@ -117,7 +117,7 @@
 | Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True`, `GatewayHealthy=True` |
 | HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
 | HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, Gateway backend Healthy |
-| CronJob `notiflex-healthcheck` | `notiflex` | `*/5 * * * *`, ops-pool, 수정 템플릿 수동 Job HTTP 200; 이전 실패 Job이 `Forbid`로 예약 실행을 막아 정리 대기 |
+| CronJob `notiflex-healthcheck` | `notiflex` | `*/5 * * * *`, ops-pool, 실패 Job 정리 후 예약 Job `Completed`·HTTP 200 검증 |
 | Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
 | StatefulSet `valkey-primary` | `notiflex` | standalone, 1/1 Ready, Secret `valkey` 참조, `notiflex:id` 공유 |
 | ServiceAccount `notiflex-api` | `notiflex` | GSA `notiflex-sa`와 Workload Identity 연결, `valkey-password` accessor만 부여 |
@@ -132,7 +132,12 @@
 
 ## TODO
 
-- [ ] 수정 전 생성된 `notiflex-healthcheck-29769835`와 수동 검증 Job `notiflex-healthcheck-verify`를 승인 후 삭제하고, 다음 예약 Job의 `Complete`와 HTTP 200 로그를 확인한다.
+- [ ] `/live`·`/ready`·의존성 진단을 분리하고 CronJob·API 5xx·Kafka consumer lag를 Alertmanager 외부 receiver와 연결한다.
+- [ ] 실제 알림 worker에 retry·DLQ·idempotency를 구현하고 요청 경로의 동기 Kafka publish를 outbox 또는 동등한 비동기 수락 구조로 분리한다.
+- [ ] NetworkPolicy, Gateway TLS·인증·rate limit과 정책 엔진을 적용해 tenant 및 플랫폼 통신 경계를 강제한다.
+- [ ] API 2 replicas, PDB, HPA와 실제 Gateway weighted routing을 구성하고 메트릭 기반 Canary 자동 승격·중단을 검증한다.
+- [ ] 고객별 Valkey·credential·Kafka 경계를 설계하고 Kafka·Valkey 고가용성 및 데이터 백업·복구 목표(RPO/RTO)를 정의한다.
+- [ ] VPA recommendation과 장기 사용량을 기준으로 default-pool·ops-pool requests와 비용을 right-sizing한다.
 - [ ] `PodRestartTooMany`의 현재 임계값(5분 내 3회 이상)은 초기값이다. 운영 데이터를 충분히 수집한 뒤 정상 재시작 빈도와 오탐 여부를 검토하여 시간 범위, 횟수, `for` 지속 시간을 조정한다.
 - [ ] Slack·이메일 등 Alertmanager 외부 receiver를 연결하고, 서비스에 영향을 주지 않는 테스트 워크로드로 `PodRestartTooMany`의 Firing과 실제 메시지 수신을 검증한다.
 
@@ -166,4 +171,4 @@
 | ch7.4 | Enterprise API 최초 기동 시 Workload Identity IAM 전파 동안 약 2분 Pending | IAM 전파 후 자동 Running 전환과 CSI mount를 확인. Enterprise `/id`가 2, 이어 SMB `/id`가 3을 반환해 두 tenant가 같은 Valkey 키를 공유함을 명시 |
 | ch8.1 | 로컬 Go 미설치와 첫 임시 Go ZIP 압축 해제 중 timeout으로 표준 라이브러리 일부 누락 | 공식 Go 1.25.10 ZIP의 SHA-256을 검증하고 새 임시 디렉터리에 완전히 해제한 뒤 `gofmt`·`go mod tidy`·`go test ./...` 성공 |
 | ch8.2 | Tempo를 가이드 기본값인 `ops-pool`에 배치하자 e2-small 노드 메모리 실사용 95%·request 88% 도달 | 추가 비용 없이 여유 있는 `worker-pool`로 옮겨 메모리 압박 위험을 낮추고 Tempo Ready와 Trace 수집을 재검증 |
-| ch8.3 | `curlimages/curl`이 사용자 이름 `curl_user`를 선언해 kubelet이 `runAsNonRoot`를 숫자 UID로 검증하지 못하고 Job 생성 실패 | 이미지가 선언한 비루트 사용자는 그대로 사용하고 `runAsNonRoot` 검사만 제거했으며, 권한 상승 차단·capability 제거·읽기 전용 루트 파일시스템은 유지 |
+| ch8.3 | `curlimages/curl`이 사용자 이름 `curl_user`를 선언해 kubelet이 `runAsNonRoot`를 숫자 UID로 검증하지 못하고 Job 생성 실패 | 이미지의 비루트 사용자는 유지하고 해당 검사만 제거했다. 승인 후 실패 Job 2개를 삭제해 `Forbid` 차단을 해소하고 다음 예약 Job의 HTTP 200 완료를 확인 |

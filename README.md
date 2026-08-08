@@ -184,7 +184,7 @@ Strimzi `0.51.0`이 Kafka `4.1.0` KRaft 단일 브로커와 `notifications` Topi
 
 API는 OpenTelemetry OTLP gRPC로 Tempo `2.9.0`에 Trace를 전송합니다. Grafana의 Tempo 데이터소스에서 `notiflex-api` HTTP 요청과 `valkey.incr`, `kafka.produce`, `kafka.consume` Span의 연결을 조회할 수 있습니다.
 
-`notiflex-healthcheck` CronJob은 `ops-pool`에서 5분마다 내부 SMB API `/health`를 호출하도록 구성했습니다. 수정된 템플릿의 수동 Job은 HTTP 200을 확인했지만, 수정 전 생성된 실패 Job이 `Forbid` 정책으로 후속 예약 실행을 막고 있어 해당 Job을 승인 후 정리해야 합니다. 수동 실행과 정리는 예약 실행과의 중복 및 부작용을 확인한 뒤 [CronJob 수동 실행 절차](command-guardrails/cronjob-manual-run.md)를 따릅니다.
+`notiflex-healthcheck` CronJob은 `ops-pool`에서 5분마다 내부 SMB API `/health`를 호출합니다. 실패 Job 정리 후 실제 예약 Job이 `Completed`되고 HTTP 200을 반환하는 것을 확인했습니다. 수동 실행과 정리는 예약 실행과의 중복 및 부작용을 확인한 뒤 [CronJob 수동 실행 절차](command-guardrails/cronjob-manual-run.md)를 따릅니다.
 
 ## 메트릭 모니터링
 
@@ -226,6 +226,19 @@ kubectl --context gke-sysnet4admin_book_gitaiops get \
 ```
 
 규칙은 Prometheus에서 `health: ok`로 로드된 것을 확인했습니다. 현재 외부 receiver가 없으므로 Firing 상태가 되어도 Slack이나 이메일로 전달되지는 않습니다. 수신 채널을 연결한 뒤 서비스에 영향을 주지 않는 테스트 워크로드로 Firing과 실제 메시지 수신을 추가 검증해야 합니다. 임계값은 초기값이며 운영 데이터와 오탐 빈도를 보고 조정합니다.
+
+## 현재 한계와 다음 단계
+
+현재 구성은 GitAIOps 학습 환경으로 검증됐지만 프로덕션 고가용성 구성은 아닙니다. API는 tenant별 1 replica, Valkey·Kafka broker·Tempo·Loki도 단일 replica이며 모든 노드는 Spot VM입니다. `/health`는 프로세스 상태만 확인하고, Kafka Consumer는 비동기로 동작하지만 API 요청은 동기 producer 완료를 기다립니다. Namespace·RBAC·quota는 분리됐으나 Valkey와 credential을 공유해 고객 데이터 경계도 완성되지 않았습니다.
+
+다음 단계는 새 도구 추가보다 현재 경로의 신뢰성을 높이는 순서로 진행합니다.
+
+1. `/live`·`/ready`·의존성 진단과 외부 Alertmanager receiver를 구성합니다.
+2. 실제 알림 worker, retry, DLQ, idempotency와 outbox 기반 비동기 수락 구조를 구현합니다.
+3. NetworkPolicy, TLS, 인증, rate limit과 정책 강제를 추가합니다.
+4. API replica·PDB·HPA와 Gateway weighted routing을 연결해 메트릭 기반 Canary를 검증합니다.
+5. 고객별 상태·credential 격리, Kafka·Valkey 고가용성, 백업·복구 목표를 설계합니다.
+6. 장기 사용량과 VPA recommendation으로 노드 requests와 비용을 right-sizing합니다.
 
 ## AI 에이전트 사용
 
