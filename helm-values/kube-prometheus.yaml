@@ -10,6 +10,10 @@ prometheus:
         memory: 512Mi
 
 grafana:
+  admin:
+    existingSecret: kube-prometheus-grafana
+    userKey: admin-user
+    passwordKey: admin-password
   resources:
     requests:
       cpu: 0
