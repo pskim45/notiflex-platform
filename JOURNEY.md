@@ -26,7 +26,7 @@
 | 운영 | 비용 중단 | ✅ | 2026-08-04 | 복구 런북을 GitHub에 보존한 뒤 GKE·Gateway/LB·디스크·Artifact Registry·Cloud Build 버킷 삭제 |
 | 운영 | 환경 복구 | ✅ | 2026-08-08 | 복구 런북으로 GKE·Artifact Registry·애플리케이션·GitOps·Gateway·관측성 스택 재구축 및 외부 API 검증 |
 | ch6 | 6.1 캐시 | ✅ | 2026-08-08 | Valkey standalone 설치, API `v0.3.0`의 `INCR notiflex:id` 전환 및 외부 ID 1~6·저장값 일치 검증 |
-| ch6 | 6.2 시크릿 관리 | ⬜ | | |
+| ch6 | 6.2 시크릿 관리 | ✅ | 2026-08-08 | GCP Secret Manager·Workload Identity·GKE managed CSI로 Valkey credential 파일 마운트 및 외부 API 검증 |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |
 | ch7 | 7.2 멀티 노드풀 | ⬜ | | |
 | ch7 | 7.3 App of Apps | ⬜ | | |
@@ -54,6 +54,7 @@
 | 외부 트래픽 관리 | GKE Gateway API | Ingress NGINX, Istio | GKE 네이티브 리전 외부 로드밸런서와 Kubernetes 표준 API를 별도 Controller 없이 사용하기 위해 선택 |
 | 무중단 배포 | Argo Rollouts Blue/Green | Flagger, Kubernetes Rolling Update | 기존 Argo CD GitOps와 통합하고 준비된 새 버전으로 Service selector를 전환하기 위해 선택 |
 | 캐시·상태 공유 | Valkey | Redis, Memcached, DragonflyDB | Redis 호환 `INCR`로 Pod 간 ID를 원자적으로 공유하고 BSD 라이선스를 유지 |
+| 시크릿 관리 | GKE Secret Manager CSI + Workload Identity | Kubernetes Secret 직접 주입, Sealed Secrets, External Secrets Operator | 장기 SA 키 없이 Secret Manager 값을 읽기 전용 파일로 전달하고 IAM 최소 권한 적용 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
 ## 현재 검증 버전
@@ -63,14 +64,15 @@
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
-| Notiflex 이미지 | `sha-f75dc17` | CI run `31246586266`에서 테스트·빌드·게시, API `v0.3.0`과 Valkey 공유 ID 검증 |
+| Notiflex 이미지 | `sha-9bc0e91` | CI run `31248953489`에서 테스트·빌드·게시, API `v0.3.1`의 CSI 파일 credential과 Valkey 공유 ID 검증 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
 | Loki | chart `7.2.0` | Loki `3.6.11`, SingleBinary, filesystem 5Gi |
 | Fluent Bit | chart `0.57.9` | Fluent Bit `5.0.9`, 노드별 DaemonSet |
 | Argo Rollouts | `v1.9.1` | Blue/Green controller 및 Rollout CRD |
-| Valkey | chart `6.2.6`, app `9.1.1`, client `valkey-go v1.0.73` | standalone 1 Pod, `50m/64Mi` request, 인증 PING 및 `INCR` 검증 |
+| Valkey | chart `6.2.6`, app `9.1.1`, client `valkey-go v1.0.73` | standalone 1 Pod, `10m/64Mi` request, 인증 PING 및 `INCR` 검증 |
+| GKE Secret Manager CSI | GKE managed `secrets-store-gke.csi.k8s.io`, provider `gke` | Workload Identity pool과 default-pool `GKE_METADATA`, driver/provider 각 2/2 Ready |
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
@@ -84,7 +86,7 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-f75dc17`, Healthy, ch6 자원 예산을 위해 1/1 Ready |
+| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-9bc0e91`, Healthy, ch6 자원 예산을 위해 1/1 Ready, CSI 파일 credential 사용 |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Green ReplicaSet 검증용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
@@ -99,6 +101,8 @@
 | HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, GCP NEG endpoint 2개 Healthy |
 | Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
 | StatefulSet `valkey-primary` | `notiflex` | standalone, 1/1 Ready, Secret `valkey` 참조, `notiflex:id` 공유 |
+| ServiceAccount `notiflex-api` | `notiflex` | GSA `notiflex-sa`와 Workload Identity 연결, `valkey-password` accessor만 부여 |
+| SecretProviderClass `notiflex-secrets` | `notiflex` | Secret Manager `valkey-password` version 1을 읽기 전용 파일로 mount, mounted=true |
 
 ## TODO
 
@@ -128,3 +132,5 @@
 | ch5.3 | 최초 Deployment→Rollout 리소스 종류 전환 중 외부 헬스 확인 1회가 5초 내 응답하지 않음 | 초기 전환 완료 후 Blue→Green 버전 배포 구간을 별도로 관찰해 Blue 유지, Green 준비, 자동 승격 및 `v0.2.0` HTTP 200 확인 |
 | 운영 복구 | 재구축 시 두 API replica가 같은 노드에 배치되어 CPU 예약량이 940m/940m에 도달하고 Fluent Bit 한 Pod가 Pending | Fluent Bit CPU request를 `1m`에서 `0`으로 낮추고 2노드 DaemonSet 2/2 Ready 및 Loki 수집 시작 확인 |
 | ch6.1 | 2노드에서 Blue/Green active·preview와 Valkey가 동시에 뜰 때 CPU 부족 위험 | GitOps 매니페스트의 replicas를 2→1로 낮추고 Valkey `resourcesPreset=none`, request `50m/64Mi` 적용 |
+| ch6.2 | Workload Identity metadata server와 managed CSI가 노드당 220m를 추가해 Valkey와 관측성 Pod가 Pending | 관측성 CPU request를 0으로 축소하고 API 25m·Valkey 10m 및 API/Valkey anti-affinity를 적용해 전체 Pod Running 복구 |
+| ch6.2 | 실패한 Valkey Helm RollingUpdate가 기존 Pending Pod의 50m revision을 반복 생성 | StatefulSet 템플릿 10m 확인 후 승인받아 Pending Pod를 재생성하고 Helm revision 4 `deployed`로 정상화 |
