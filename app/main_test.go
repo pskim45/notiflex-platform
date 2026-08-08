@@ -1,16 +1,35 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
+type fakeIDStore struct {
+	value uint64
+	err   error
+}
+
+func (s *fakeIDStore) NextID(context.Context) (uint64, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	s.value++
+	return s.value, nil
+}
+
+func testAPI() *api {
+	return &api{podName: "test-pod", ids: &fakeIDStore{}}
+}
+
 func TestHealth(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	response := httptest.NewRecorder()
-	newHandler(&api{podName: "test-pod"}).ServeHTTP(response, request)
+	newHandler(testAPI()).ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
@@ -28,7 +47,7 @@ func TestHealth(t *testing.T) {
 func TestVersion(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/version", nil)
 	response := httptest.NewRecorder()
-	newHandler(&api{podName: "test-pod"}).ServeHTTP(response, request)
+	newHandler(testAPI()).ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
@@ -50,7 +69,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestNextID(t *testing.T) {
-	handler := newHandler(&api{podName: "test-pod"})
+	handler := newHandler(testAPI())
 
 	for want := range 2 {
 		request := httptest.NewRequest(http.MethodGet, "/id", nil)
@@ -68,10 +87,21 @@ func TestNextID(t *testing.T) {
 	}
 }
 
+func TestNextIDStoreFailure(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/id", nil)
+	response := httptest.NewRecorder()
+	service := &api{podName: "test-pod", ids: &fakeIDStore{err: errors.New("unavailable")}}
+	newHandler(service).ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
 func TestUnsupportedMethod(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/id", nil)
 	response := httptest.NewRecorder()
-	newHandler(&api{podName: "test-pod"}).ServeHTTP(response, request)
+	newHandler(testAPI()).ServeHTTP(response, request)
 
 	if response.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusMethodNotAllowed)

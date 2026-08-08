@@ -2,7 +2,7 @@ kind: DaemonSet
 
 resources:
   requests:
-    cpu: 1m
+    cpu: 0
     memory: 64Mi
   limits:
     cpu: 100m

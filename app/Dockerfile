@@ -1,7 +1,7 @@
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 COPY . .
 RUN go test ./... && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /notiflex-api .

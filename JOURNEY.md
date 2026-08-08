@@ -24,6 +24,7 @@
 | ch5 | 5.3 무중단 배포 | ✅ | 2026-08-04 | Argo Rollouts Blue/Green 전환 및 `v0.2.2` 재배포에서 preview·30초 자동 승격·active 전환·구 버전 축소 검증 |
 | ch5 | 5.4 ADR | ✅ | 2026-08-04 | ch3~ch5의 아키텍처 결정 7건을 시간 순서로 정식 기록 |
 | 운영 | 비용 중단 | ✅ | 2026-08-04 | 복구 런북을 GitHub에 보존한 뒤 GKE·Gateway/LB·디스크·Artifact Registry·Cloud Build 버킷 삭제 |
+| 운영 | 환경 복구 | ✅ | 2026-08-08 | 복구 런북으로 GKE·Artifact Registry·애플리케이션·GitOps·Gateway·관측성 스택 재구축 및 외부 API 검증 |
 | ch6 | 6.1 캐시 | ⬜ | | |
 | ch6 | 6.2 시크릿 관리 | ⬜ | | |
 | ch6 | 6.3 Canary 전환 | ⬜ | | |
@@ -54,14 +55,14 @@
 | 무중단 배포 | Argo Rollouts Blue/Green | Flagger, Kubernetes Rolling Update | 기존 Argo CD GitOps와 통합하고 준비된 새 버전으로 Service selector를 전환하기 위해 선택 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 
-## 종료 전 마지막 검증 버전
+## 현재 검증 버전
 
-> 2026-08-04 비용 중단으로 현재 실행 중인 GCP 워크로드는 없다. 아래는 삭제 직전 검증한 버전이다.
+> 2026-08-08 복구 런북으로 GCP 워크로드를 재구축하고 아래 버전을 다시 검증했다.
 
 | 컴포넌트 | 버전 | 변경 이력 |
 |---------|------|----------|
 | Go | 1.25.12 | 실행 중 API `/version` 응답으로 확인 |
-| Notiflex 이미지 | `sha-bff731e` (`sha256:44f2772a69033b7df2d5f7387efe32a20833af373fef3f30768e2f88ea1c14e3`) | API `v0.2.2`, 기존 `v0.2.1` active 유지 중 Green 준비 후 30초 자동 승격 검증 |
+| Notiflex 이미지 | `sha-af1e2ae` (`sha256:9067875712f14b606e4db56a89c98b999bcac5c8fa31819b4baf8acec17391ea`) | 복구 CI run `31245087032`에서 재빌드·게시, API `v0.2.2` 외부 응답 검증 |
 | GKE | `1.35.6-gke.1250000` | 최초 클러스터 생성 |
 | ArgoCD | `v3.3.6` | 최초 설치 및 `notiflex-smb` Application 연결 |
 | kube-prometheus-stack | chart `88.1.3` | Prometheus `3.13.2`, Grafana `13.1.1`, Alertmanager `0.33.1` |
@@ -71,9 +72,9 @@
 | Kafka | 미설치 | ch8 예정 |
 | OTel SDK | 미설치 | ch8 예정 |
 
-## 종료 전 마지막 리소스 스냅샷
+## 현재 리소스 스냅샷
 
-> 현재 아래 리소스는 모두 삭제된 상태다. 재구축 절차는 `docs/shutdown-recovery.md`를 따른다.
+> 2026-08-08 재구축 후 검증한 상태다. 재구축 절차는 `docs/shutdown-recovery.md`를 따른다.
 
 | 노드풀 | 머신 타입 | 노드 수 | 주요 워크로드 |
 |--------|-----------|---------|---------------|
@@ -81,7 +82,7 @@
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
 |---------------------|---------------|------|
-| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-bff731e`, Healthy, stable·active `5447b84fd9`, 2/2 Ready |
+| Rollout `notiflex-api` | `notiflex` | Blue/Green, `sha-af1e2ae`, Healthy, 2/2 Ready |
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Green ReplicaSet 검증용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
@@ -91,7 +92,7 @@
 | DaemonSet `fluent-bit` | `monitoring` | 2/2 Ready, Loki push 및 Kubernetes 라벨 확인 |
 | ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
 | PrometheusRule `pod-restart-alert` | `monitoring` | Operator 검증 완료, `PodRestartTooMany` health `ok`·현재 `inactive` |
-| Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True` |
+| Gateway `notiflex-gateway` | `notiflex` | `35.216.70.162`, `Programmed=True`, `GatewayHealthy=True` |
 | HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
 | HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, GCP NEG endpoint 2개 Healthy |
 | Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
@@ -122,3 +123,4 @@
 | ch5.2 | Gateway 생성 직후 백엔드가 `no healthy upstream`으로 HTTP 503 반환 | HealthCheckPolicy 적용 상태와 GCP backend health를 확인하고 endpoint 2개가 Healthy로 전환된 뒤 HTTP 200 재검증 |
 | ch5.3 | 로컬 환경에 Go 도구가 없어 `gofmt`와 `go test ./...`를 직접 실행하지 못함 | GitHub Actions run `30894204759`에서 테스트·이미지 빌드·매니페스트 갱신 전체 성공 확인 |
 | ch5.3 | 최초 Deployment→Rollout 리소스 종류 전환 중 외부 헬스 확인 1회가 5초 내 응답하지 않음 | 초기 전환 완료 후 Blue→Green 버전 배포 구간을 별도로 관찰해 Blue 유지, Green 준비, 자동 승격 및 `v0.2.0` HTTP 200 확인 |
+| 운영 복구 | 재구축 시 두 API replica가 같은 노드에 배치되어 CPU 예약량이 940m/940m에 도달하고 Fluent Bit 한 Pod가 Pending | Fluent Bit CPU request를 `1m`에서 `0`으로 낮추고 2노드 DaemonSet 2/2 Ready 및 Loki 수집 시작 확인 |
