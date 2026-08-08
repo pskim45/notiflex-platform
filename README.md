@@ -4,7 +4,7 @@ Notiflex는 B2B 환경에서 여러 채널의 알림을 안정적으로 전달�
 
 ## 현재 상태
 
-Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo CD App of Apps가 API와 Valkey·Prometheus·Loki·Fluent Bit을 모두 Git에서 관리하며 7개 Application은 `Synced/Healthy`입니다.
+Notiflex API `v0.3.2`가 GKE의 전용 `api-pool`에서 실행 중입니다. `default-pool`·`api-pool`·`worker-pool`·`ops-pool`로 역할을 분리했으며, Valkey로 Pod 간 ID를 공유하고 GCP Secret Manager의 credential을 Workload Identity와 GKE managed CSI로 읽기 전용 파일에 마운트합니다. Argo CD App of Apps가 bootstrap·API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정을 Git에서 관리하며 8개 Application은 `Synced/Healthy`입니다.
 
 ## 기술 스택
 
@@ -103,6 +103,14 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply -f argocd/root-app.yaml
 kubectl --context gke-sysnet4admin_book_gitaiops get application -n argocd
 ```
 
+root sync 순서는 Application annotation으로 고정한다.
+
+```text
+wave 0: bootstrap — notiflex·monitoring namespace
+wave 1: valkey, kube-prometheus, loki — 데이터·관측성 backend
+wave 2: fluent-bit, monitoring-config, notiflex-smb — 수집기·설정·API
+```
+
 GitOps 동기화 상태는 다음과 같이 확인합니다.
 
 ```bash
@@ -128,12 +136,12 @@ GKE Gateway API가 리전 외부 HTTP 로드밸런서를 구성합니다. `notif
 
 ```bash
 kubectl --context gke-sysnet4admin_book_gitaiops get gateway,httproute -n notiflex
-curl http://35.216.70.162/health
-curl http://35.216.70.162/id
-curl http://35.216.70.162/version
+curl http://35.216.50.229/health
+curl http://35.216.50.229/id
+curl http://35.216.50.229/version
 ```
 
-현재 외부 IP는 `35.216.70.162`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
+현재 외부 IP는 `35.216.50.229`이며 세 엔드포인트 모두 HTTP 200 응답을 확인했습니다. 리전 외부 Gateway에 필요한 `proxy-only-subnet`은 `default` VPC의 `asia-northeast3` 리전에 `172.16.0.0/23` 대역으로 구성되어 있습니다. 현재 리스너는 HTTP이므로 민감한 운영 트래픽을 받기 전에는 도메인과 TLS 인증서를 추가해야 합니다.
 
 ## Canary 배포
 
@@ -147,7 +155,7 @@ kubectl --context gke-sysnet4admin_book_gitaiops apply --server-side \
 
 kubectl --context gke-sysnet4admin_book_gitaiops get rollout notiflex-api -n notiflex
 kubectl --context gke-sysnet4admin_book_gitaiops get rs,svc -n notiflex
-curl http://35.216.70.162/version
+curl http://35.216.50.229/version
 ```
 
 `v0.3.1`에서 `v0.3.2`로 재배포하면서 step 1(20%), step 3(50%), step 5(80%)의 30초 pause와 step 6(100%) 완료를 확인했습니다. 현재 replica가 1이고 HTTPRoute가 stable Service만 참조하므로 이 weight는 Rollout 진행 단계이며 Gateway 수준의 정밀한 요청 비율은 아닙니다. 실제 20/50/80 트래픽 분할은 ch7 노드풀·replica 확장 후 Gateway API traffic routing 연동으로 고도화해야 합니다.

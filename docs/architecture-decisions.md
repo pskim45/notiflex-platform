@@ -125,11 +125,11 @@
 
 ## ADR-012: 여러 앱은 Argo CD App of Apps로 관리 (7장)
 
-**시점**: 2026-08 / **결정**: `root-app`이 `argocd/apps/`를 감시하고 API, Valkey, Prometheus, Loki, Fluent Bit, 모니터링 설정 Application을 등록한다. 단일 클러스터에서는 ApplicationSet 대신 App of Apps를 사용한다.
+**시점**: 2026-08 / **결정**: `root-app`이 `argocd/apps/`를 감시하고 bootstrap, API, Valkey, Prometheus, Loki, Fluent Bit, 모니터링 설정 Application을 등록한다. sync wave는 0(namespace) → 1(backend) → 2(수집기·설정·API)로 고정하며 단일 클러스터에서는 ApplicationSet 대신 App of Apps를 사용한다.
 
 **이유**:
 
 - 일반 Kubernetes YAML과 외부 Helm chart를 모두 Git push와 Argo CD 자동 동기화라는 동일한 운영 흐름으로 관리한다.
 - 기존 chart 버전과 `helm-values/`를 다중 source Application에 명시해 수동 `helm upgrade` 의존성을 제거한다.
-- 앱 6개 규모에서는 Application별 순수 YAML이 템플릿 generator보다 읽고 문제를 추적하기 쉽다.
+- 하위 앱 7개 규모에서는 Application별 순수 YAML이 템플릿 generator보다 읽고 문제를 추적하기 쉽다.
 - 기존 Valkey·Grafana credential Secret과 PVC를 유지하면서 Helm CLI 설치 리소스를 안전하게 인수할 수 있다.

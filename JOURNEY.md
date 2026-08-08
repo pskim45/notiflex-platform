@@ -30,7 +30,7 @@
 | ch6 | 6.3 Canary 전환 | ✅ | 2026-08-08 | Argo Rollouts Canary 전환, `v0.3.2`에서 20%·50%·80% 각 30초 pause와 100% 승격 검증 |
 | ch6 | 6.4 아키텍처 컨텍스트 | ✅ | 2026-08-08 | `claude-context/architecture.md`에 현재 컴포넌트·연결 관계·핵심 설정·namespace·배포 및 관측성 경로를 클러스터 실측 기준으로 기록 |
 | ch7 | 7.2 멀티 노드풀 | ✅ | 2026-08-08 | `api-pool`·`worker-pool`·`ops-pool` 생성, API nodeSelector 적용과 Canary 재배포 후 전용 노드 배치·CSI credential·외부 API 검증 |
-| ch7 | 7.3 App of Apps | ✅ | 2026-08-08 | `root-app` 아래 API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 6개 하위 앱을 GitOps화하고 전체 Synced/Healthy 검증 |
+| ch7 | 7.3 App of Apps | ✅ | 2026-08-08 | `root-app` 아래 bootstrap·API·Valkey·Prometheus·Loki·Fluent Bit·모니터링 설정 7개 하위 앱과 wave 0→1→2 순서를 구성하고 전체 Synced/Healthy 검증 |
 | ch7 | 7.4 멀티테넌시 | ⬜ | | |
 | ch8 | 8.1 메시징 | ⬜ | | |
 | ch8 | 8.2 트레이싱 | ⬜ | | |
@@ -58,7 +58,7 @@
 | 시크릿 관리 | GKE Secret Manager CSI + Workload Identity | Kubernetes Secret 직접 주입, Sealed Secrets, External Secrets Operator | 장기 SA 키 없이 Secret Manager 값을 읽기 전용 파일로 전달하고 IAM 최소 권한 적용 |
 | 문서 동기화 | 저장소 범위 Codex 스킬 | 전역 개인 스킬, 고정 문서 목록 | 팀과 공유하고 이후 장의 신규 문서도 수정 없이 동적으로 처리 |
 | 노드 스케줄링 | GKE 역할별 노드풀 + nodeSelector | 단일 노드풀, taint/toleration, nodeAffinity | GKE 자동 노드풀 라벨로 API 배치를 단순하고 명시적으로 분리하고 이후 worker·ops 워크로드 확장 기반 마련 |
-| 다중 앱 관리 | Argo CD App of Apps | 개별 수동 Application, ApplicationSet | 단일 클러스터의 6개 앱을 순수 YAML과 Git 디렉터리로 묶고 Helm chart까지 동일한 GitOps 흐름으로 관리 |
+| 다중 앱 관리 | Argo CD App of Apps + sync wave | 개별 수동 Application, ApplicationSet | 단일 클러스터의 7개 하위 앱을 Git으로 묶고 namespace→backend→수집기·설정·API 의존 순서를 명시 |
 
 ## 현재 검증 버전
 
@@ -85,9 +85,9 @@
 
 | 노드풀 | 머신 타입 | 노드 수 | 주요 워크로드 |
 |--------|-----------|---------|---------------|
-| `default-pool` | `e2-medium` Spot VM | 2 | Valkey, 관측성, Argo CD 및 컨트롤러 |
+| `default-pool` | `e2-medium` Spot VM | 2 | 관측성, Argo CD 및 컨트롤러 |
 | `api-pool` | `e2-medium` Spot VM | 1 | `notiflex-api` 1 replica |
-| `worker-pool` | `e2-standard-2` Spot VM | 1 | worker/Kafka 배치 준비, 현재 시스템 DaemonSet만 실행 |
+| `worker-pool` | `e2-standard-2` Spot VM | 1 | Valkey, 향후 worker/Kafka 배치 |
 | `ops-pool` | `e2-small` Spot VM | 1 | 운영/CronJob 배치 준비, 현재 시스템 DaemonSet만 실행 |
 
 | Kubernetes 리소스 | 네임스페이스 | 상태 |
@@ -96,7 +96,8 @@
 | Service `notiflex-api` | `notiflex` | ClusterIP, 80 → 8080 |
 | Service `notiflex-api-preview` | `notiflex` | Canary ReplicaSet용 ClusterIP, 80 → 8080 |
 | Application `notiflex-smb` | `argocd` | Synced, Healthy, auto-sync/prune/selfHeal 활성화 |
-| Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 6개 자동 등록, Synced/Healthy |
+| Application `root-app` | `argocd` | `argocd/apps/` 감시, 하위 Application 7개 자동 등록, Synced/Healthy |
+| Application `bootstrap` | `argocd` | wave 0에서 `notiflex`·`monitoring` namespace 관리, Synced/Healthy |
 | Application `valkey`·`kube-prometheus`·`loki`·`fluent-bit` | `argocd` | 외부 Helm chart + Git values 다중 source, 모두 Synced/Healthy |
 | Application `monitoring-config` | `argocd` | `monitoring/`과 `k8s/monitoring/` 일반 YAML 관리, Synced/Healthy |
 | Prometheus·Grafana·Alertmanager | `monitoring` | 모든 Pod Running, active scrape target 28/28 Up |
@@ -105,9 +106,9 @@
 | DaemonSet `fluent-bit` | `monitoring` | 5/5 Ready, 모든 노드의 로그를 Loki로 push |
 | ConfigMap `loki-datasource` | `monitoring` | Grafana sidecar 로딩 및 datasource reload 200 확인 |
 | PrometheusRule `pod-restart-alert` | `monitoring` | Operator 검증 완료, `PodRestartTooMany` health `ok`·현재 `inactive` |
-| Gateway `notiflex-gateway` | `notiflex` | `35.216.70.162`, `Programmed=True`, `GatewayHealthy=True` |
+| Gateway `notiflex-gateway` | `notiflex` | `35.216.50.229`, `Programmed=True`, `GatewayHealthy=True` |
 | HTTPRoute `notiflex-route` | `notiflex` | `/` → `notiflex-api:80`, Accepted·ResolvedRefs·Reconciled=True |
-| HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, GCP NEG endpoint 2개 Healthy |
+| HealthCheckPolicy `notiflex-healthcheck` | `notiflex` | `/health:8080`, Gateway backend Healthy |
 | Deployment `argo-rollouts` | `argo-rollouts` | controller `v1.9.1`, 1/1 Ready |
 | StatefulSet `valkey-primary` | `notiflex` | standalone, 1/1 Ready, Secret `valkey` 참조, `notiflex:id` 공유 |
 | ServiceAccount `notiflex-api` | `notiflex` | GSA `notiflex-sa`와 Workload Identity 연결, `valkey-password` accessor만 부여 |
@@ -144,3 +145,4 @@
 | ch6.2 | Workload Identity metadata server와 managed CSI가 노드당 220m를 추가해 Valkey와 관측성 Pod가 Pending | 관측성 CPU request를 0으로 축소하고 API 25m·Valkey 10m 및 API/Valkey anti-affinity를 적용해 전체 Pod Running 복구 |
 | ch6.2 | 실패한 Valkey Helm RollingUpdate가 기존 Pending Pod의 50m revision을 반복 생성 | StatefulSet 템플릿 10m 확인 후 승인받아 Pending Pod를 재생성하고 Helm revision 4 `deployed`로 정상화 |
 | ch6.3 | replica 1과 stable Service 기반 HTTPRoute에서는 setWeight 20/50/80이 실제 Gateway 요청 비율을 정밀 분할하지 못함 | Canary 단계·pause·stable/canary Service 전환을 검증하고, 실제 가중 트래픽은 ch7 replica 확장과 Gateway traffic routing 연동 과제로 기록 |
+| ch7.3 | namespace 리소스를 `notiflex-smb`에서 wave 0 `bootstrap`으로 한 번에 이동하자 기존 앱 prune가 `notiflex` namespace를 삭제 | bootstrap이 namespace를 재생성하고 Secret Manager의 기존 credential로 Valkey Secret 복구, Valkey·API·Gateway 재동기화. 기존 Valkey PVC와 `notiflex:id` 데이터는 손실되어 새 PVC에서 ID 1부터 재시작했으며, 이후 namespace는 bootstrap 단독 소유와 `Prune=false`로 보호 |
